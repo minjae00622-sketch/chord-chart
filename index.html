@@ -87,6 +87,9 @@ input[type=text],input[type=number],select{width:100%;height:42px;font:inherit;f
 .song.on{border-color:var(--acc);background:var(--soft)}
 .song b{display:block;font-size:15px}
 .song small{color:var(--mute);font-size:13px}
+.mrow{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center;margin-top:8px;font-size:14px}
+.mrow input[hidden]{display:none}
+.mi{display:grid;grid-template-columns:72px auto 60px 10px 60px 44px;justify-content:start;gap:6px;align-items:center;font-size:14px}
 .msg{font-size:14px;color:var(--mute);min-height:1.4em;margin:8px 0 0}
 .toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%);background:#1b2230;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9;max-width:90vw}
 .toast.show{opacity:1}
@@ -120,6 +123,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
           <button class="ib" id="close" aria-label="닫기">×</button>
         </div>
         <input class="cin" id="cin" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="예: Dm7 G7">
+        <div class="mrow"><span>이 마디 박자</span><select id="barMeter" aria-label="이 마디 박자"></select><input type="text" id="barMeterCustom" inputmode="text" placeholder="예: 7/8" aria-label="직접 입력한 박자" hidden></div>
         <div class="pad" id="pad"></div>
         <div class="edf">
           <button id="clearBar">이 마디 지우기</button>
@@ -145,6 +149,15 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
           <p class="hint">악보의 마디를 누르면 입력창이 열려요. 한 마디에 코드가 여러 개면 띄어 쓰세요 (예: Dm7 G7). 앞 마디 반복은 %.</p>
           <div class="chips"><button class="chip" id="startInput">1마디부터 입력</button><button class="chip warn" id="clearAll">코드 모두 지우기</button></div>
           <label class="tog"><input type="checkbox" data-k="printChords">코드를 악보에 표시</label>
+        </div>
+        <div class="sec">
+          <h2>박자</h2>
+          <div class="row"><span>곡 기본 박자</span><div class="chips" id="meterChips"></div></div>
+          <div class="row"><span>직접 입력</span><input type="text" id="meterCustom" placeholder="예: 7/4" style="max-width:140px"></div>
+          <h2 style="margin-top:10px">박자가 바뀌는 마디</h2>
+          <p class="hint">마디 하나 또는 구간의 박자를 바꿔요. 입력창에서 "이 마디 박자"로 바꿔도 여기에 추가돼요. 박자가 바뀌는 마디에는 악보에 박자표가 찍혀요.</p>
+          <div class="list" id="meterList"></div>
+          <button class="chip add" id="addMeter">+ 박자 변경 추가</button>
         </div>
         <div class="sec">
           <h2>조옮김</h2>
@@ -184,6 +197,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
             <label class="tog"><input type="checkbox" data-k="half">반 마디 점선</label>
             <label class="tog"><input type="checkbox" data-k="numbers">마디 번호</label>
             <label class="tog"><input type="checkbox" data-k="finalBar">끝 겹세로줄</label>
+            <label class="tog"><input type="checkbox" data-k="showMeter">박자표 표시</label>
           </div>
         </div>
         <div class="sec">
@@ -230,15 +244,15 @@ const LEGEND = [["인트로·아웃트로","#FFB86B"],["벌스","#8EC5FF"],["프
   ["인터루드","#7EDCC4"],["브릿지","#C39BFF"],["예비 1","#FF9ECF"],["예비 2","#BFC5CC"]];
 const LAYOUT = {rows:12,bars:4,group:0,orient:"p",labelCol:true,labelGray:false,half:false,numbers:false,finalBar:true,
   title:true,fields:"키, 템포, 스타일, 폼",legendOn:true,memoOn:true,memo:3,memoCols:"2",fillAlpha:"0.45",secNames:true,
-  printChords:true,flats:"1",legend:LEGEND};
+  printChords:true,flats:"1",showMeter:true,legend:LEGEND};
 const KEY = "chordchart-app-v1";
 const clone = o => JSON.parse(JSON.stringify(o));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-const newSong = lay => ({id: uid(), title: "", info: {}, chords: {}, sections: [], rowBars: [], layout: clone(lay || LAYOUT), updated: Date.now()});
+const newSong = lay => ({id: uid(), title: "", meter: "4/4", meters: [], info: {}, chords: {}, sections: [], rowBars: [], layout: clone(lay || LAYOUT), updated: Date.now()});
 let db = null;
 try { db = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
 if (!db || !Array.isArray(db.songs) || !db.songs.length) { const s = newSong(); db = {songs: [s], cur: s.id, kbd: false}; }
-db.songs.forEach(s => { s.layout = Object.assign(clone(LAYOUT), s.layout); s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; });
+db.songs.forEach(s => { s.layout = Object.assign(clone(LAYOUT), s.layout); s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; s.meter = s.meter || "4/4"; s.meters = s.meters || []; });
 let S = db.songs.find(s => s.id === db.cur) || db.songs[0];
 let st = S.layout;
 let saveT = 0;
@@ -274,6 +288,11 @@ const RX = /^([A-G][#b]?)([^/]*)(?:\/([A-G][#b]?))?$/;
 function trTok(t, d) { const m = t.match(RX); if (!m) return t; return tn(m[1], d) + m[2] + (m[3] ? "/" + tn(m[3], d) : ""); }
 const pretty = t => t.replace(/#/g, "♯").replace(/(^|[^A-Za-z])b(?=\d)|(?<=[A-G])b/g, (m, p) => (p || "") + "♭");
 const toks = s => (s || "").trim().split(/\s+/).filter(Boolean);
+const MRX = /^\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*$/;
+const normMeter = t => { const m = String(t || "").match(MRX); return m && +m[1] > 0 && +m[2] > 0 ? `${+m[1]}/${+m[2]}` : null; };
+const PRESETS = ["4/4", "3/4", "2/4", "5/4", "6/8", "7/8", "9/8", "12/8"];
+function meterAt(k) { for (let i = S.meters.length - 1; i >= 0; i--) { const q = S.meters[i];
+  if (k >= q.from && k <= q.to && normMeter(q.m)) return normMeter(q.m); } return normMeter(S.meter) || "4/4"; }
 
 /* ---------- drawing ---------- */
 const INK = "#2b2b2b", MID = "#8a8a8a", LIGHT = "#c9c9c9", PT = 0.3528;
@@ -347,7 +366,9 @@ function draw(ctx, s, selBar) {
       if (st.numbers) text(bx + 1.2, y0 + 3.2, String(k), 5, MID);
       if (st.half) line(bx + BW / 2, y0 + Math.min(3, rowH * .2), bx + BW / 2, y0 + rowH - Math.min(3, rowH * .2), LIGHT, .5, [.7, .7]);
       if (b) line(bx, y0, bx, y0 + rowH, INK, .7);
-      if (st.printChords && S.chords[k]) drawChords(ctx, toks(S.chords[k]), bx, y0, BW, rowH, font);
+      let off = 0;
+      if (st.showMeter) { const m = meterAt(k); if (k === 1 || m !== meterAt(k - 1)) off = drawMeter(ctx, m, bx, y0, rowH); }
+      if (st.printChords && S.chords[k]) drawChords(ctx, toks(S.chords[k]), bx + off, y0, BW - off, rowH, font);
       if (selBar === k) { ctx.strokeStyle = "#2f6fde"; ctx.lineWidth = .8; ctx.strokeRect(bx + .6, y0 + .6, BW - 1.2, rowH - 1.2); }
     }
     line(L, y0, R, y0, INK, r === 0 || (st.group && r % st.group === 0) ? 1.2 : .5);
@@ -361,6 +382,14 @@ function draw(ctx, s, selBar) {
     for (let c = 0; c < cols; c++) { const cx = L + c * (cw + 8);
       for (let i = 0; i < st.memo; i++) { const yy = GB + 10 + i * 7; line(cx, yy, cx + cw, yy, LIGHT, .5); } } }
   return cells;
+}
+function drawMeter(ctx, m, x, y, h) {
+  const [a, b] = m.split("/"), sz = Math.min(h * 0.4, 4.6);
+  ctx.font = `800 ${sz}px ${FONT}`; ctx.fillStyle = "#151515"; ctx.textBaseline = "alphabetic"; ctx.textAlign = "center";
+  const w = Math.max(ctx.measureText(a).width, ctx.measureText(b).width), cx = x + 1.3 + w / 2, top = y + (h - sz * 1.9) / 2;
+  ctx.fillText(a, cx, top + sz * .86); ctx.fillText(b, cx, top + sz * 1.8);
+  ctx.textAlign = "start";
+  return w + 2;
 }
 function drawChords(ctx, list, x, y, w, h, font) {
   const n = list.length, slot = w / n;
@@ -391,7 +420,7 @@ function render() {
   const s = (cv.parentElement.clientWidth || 400) * dpr / W;
   cv.width = Math.round(W * s); cv.height = Math.round(H * s);
   cells = draw(cv.getContext("2d"), s, sel);
-  $("count").textContent = `${total()}마디 · A4 ${st.orient === "p" ? "세로" : "가로"} · 마디를 눌러 코드 입력`;
+  $("count").textContent = `${total()}마디 · ${normMeter(S.meter) || "4/4"} · A4 ${st.orient === "p" ? "세로" : "가로"} · 마디를 눌러 코드 입력`;
   $("appTitle").textContent = S.title || "제목 없는 곡";
 }
 cv.addEventListener("click", e => {
@@ -405,6 +434,7 @@ function openEd(k) {
   sel = Math.max(1, Math.min(total(), k)); $("ed").hidden = false; document.body.classList.add("editing");
   $("edBar").textContent = `마디 ${sel} / ${total()}`;
   cin.value = S.chords[sel] || ""; cin.inputMode = db.kbd ? "text" : "none";
+  fillBarMeter();
   render(); cin.focus({preventScroll: true});
   const c = cells.find(x => x.k === sel), ed = $("ed");
   if (c && getComputedStyle(ed).position === "fixed") {
@@ -462,6 +492,44 @@ document.querySelectorAll("[data-tr]").forEach(b => b.onclick = () => {
   persist(); renderInfo(); if (sel) cin.value = S.chords[sel] || ""; render(); toast(`반음 ${d > 0 ? "올렸어요" : "내렸어요"}`);
 });
 
+/* ---------- meter ---------- */
+function fillBarMeter() {
+  if (!sel) return;
+  const def = normMeter(S.meter) || "4/4", cur = meterAt(sel), own = S.meters.some(q => sel >= q.from && sel <= q.to && normMeter(q.m));
+  const opts = [["", `곡 기본 (${def})`], ...PRESETS.map(p => [p, p]), ["custom", "직접 입력…"]];
+  const isCustom = own && !PRESETS.includes(cur);
+  $("barMeter").innerHTML = opts.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join("");
+  $("barMeter").value = !own ? "" : isCustom ? "custom" : cur;
+  $("barMeterCustom").hidden = !isCustom; $("barMeterCustom").value = isCustom ? cur : "";
+}
+function cutBar(k) { const out = [];
+  S.meters.forEach(q => { if (k < q.from || k > q.to) { out.push(q); return; }
+    if (q.from <= k - 1) out.push({m: q.m, from: q.from, to: k - 1});
+    if (k + 1 <= q.to) out.push({m: q.m, from: k + 1, to: q.to}); });
+  S.meters = out; }
+function setBarMeter(m) { snap(); cutBar(sel); const def = normMeter(S.meter) || "4/4";
+  if (m && m !== def) S.meters.push({m, from: sel, to: sel});
+  persist(); renderMeters(); render(); }
+$("barMeter").addEventListener("change", e => { const v = e.target.value;
+  if (v === "custom") { $("barMeterCustom").hidden = false; $("barMeterCustom").focus(); return; }
+  $("barMeterCustom").hidden = true; setBarMeter(v); });
+$("barMeterCustom").addEventListener("input", e => { const m = normMeter(e.target.value); if (m) setBarMeter(m); });
+function renderMeters() {
+  const def = normMeter(S.meter) || "4/4";
+  $("meterChips").innerHTML = PRESETS.map(p => `<button class="chip${p === def ? " on" : ""}" data-m="${p}" style="${p === def ? "background:var(--acc);color:var(--accInk);border-color:var(--acc)" : ""}">${p}</button>`).join("");
+  $("meterCustom").value = PRESETS.includes(def) ? "" : def;
+  $("meterList").innerHTML = S.meters.map((q, i) => `<div class="mi"><input type="text" value="${esc(q.m)}" data-i="${i}" data-f="m" aria-label="박자"><span>마디</span><input type="number" inputmode="numeric" min="1" value="${q.from}" data-i="${i}" data-f="from" aria-label="시작 마디"><span>~</span><input type="number" inputmode="numeric" min="1" value="${q.to}" data-i="${i}" data-f="to" aria-label="끝 마디"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("") || '<p class="hint">모든 마디가 곡 기본 박자예요.</p>';
+}
+$("meterChips").addEventListener("click", e => { const b = e.target.closest("[data-m]"); if (!b) return; snap(); S.meter = b.dataset.m; persist(); renderMeters(); if (sel) fillBarMeter(); render(); });
+$("meterCustom").addEventListener("input", e => { const m = normMeter(e.target.value); if (!m) return; snap("meterDef"); S.meter = m;
+  persist(); $("meterChips").querySelectorAll("[data-m]").forEach(b => { b.style.cssText = ""; }); if (sel) fillBarMeter(); render(); });
+$("meterList").addEventListener("input", e => { const t = e.target, i = +t.dataset.i, f = t.dataset.f; if (isNaN(i) || !f) return;
+  if (f === "m") { const m = normMeter(t.value); if (!m) return; snap("mm" + i); S.meters[i].m = m; }
+  else { const v = parseInt(t.value, 10); if (isNaN(v)) return; snap("m" + f + i); S.meters[i][f] = v; }
+  persist(); if (sel) fillBarMeter(); render(); });
+$("meterList").addEventListener("click", e => { const b = e.target.closest(".x"); if (!b) return; snap(); S.meters.splice(+b.dataset.i, 1); persist(); renderMeters(); if (sel) fillBarMeter(); render(); });
+$("addMeter").onclick = () => { snap(); const k = sel || 1; S.meters.push({m: "3/4", from: k, to: k}); persist(); renderMeters(); if (sel) fillBarMeter(); render(); };
+
 /* ---------- panels ---------- */
 function renderInfo() {
   const fields = st.fields.split(",").map(t => t.trim()).filter(Boolean);
@@ -489,7 +557,7 @@ function syncUI() {
   document.querySelectorAll(".seg").forEach(el => el.querySelectorAll("button").forEach(b => b.classList.toggle("on", String(st[el.dataset.k]) === b.dataset.v)));
   document.querySelectorAll(".tog input[data-k]").forEach(i => i.checked = !!st[i.dataset.k]);
   $("fields").value = st.fields; $("kbd").checked = !!db.kbd;
-  renderInfo(); renderLegend(); renderSecs(); renderRows(); renderSongs();
+  renderInfo(); renderLegend(); renderSecs(); renderRows(); renderSongs(); renderMeters();
 }
 const update = () => { persist(); render(); };
 
@@ -582,7 +650,7 @@ $("exportJson").onclick = async () => { try { await saveFile(`코드표_백업_$
 $("importJson").onchange = async e => { const f = e.target.files[0]; if (!f) return;
   try { const o = JSON.parse(await f.text()); if (!o || !Array.isArray(o.songs)) throw 0;
     let n = 0; o.songs.forEach(s => { if (!s || !s.layout) return; s.layout = Object.assign(clone(LAYOUT), s.layout);
-      s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || [];
+      s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; s.meter = s.meter || "4/4"; s.meters = s.meters || [];
       const i = db.songs.findIndex(x => x.id === s.id); if (i >= 0) db.songs[i] = s; else db.songs.push(s); n++; });
     openSong(db.songs.find(x => x.id === S.id) || db.songs[0]); toast(`${n}곡을 불러왔어요`);
   } catch (err) { toast("백업 파일을 읽지 못했어요"); }
