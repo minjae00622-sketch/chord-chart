@@ -72,6 +72,7 @@ input[type=text],input[type=number],select{width:100%;height:42px;font:inherit;f
 .info{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .info label{font-size:13px;color:var(--mute);display:grid;gap:2px}
 .info .wide{grid-column:1/-1}
+.keyrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}
 .tempo{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:6px}
 .fpad{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:8px;border:1px solid var(--line);border-radius:12px;background:var(--soft)}
 .fpad[hidden]{display:none}
@@ -676,11 +677,22 @@ function renderInfo() {
   $("info").innerHTML = `<label class="wide">곡명<input type="text" data-f="__title" value="${esc(S.title)}"></label>` +
     fields.map(f => isTempo(f)
       ? `<label class="wide">${esc(f)}<span class="tempo"><select data-tn aria-label="기준 음표">${NOTES.map(([v, l]) => `<option value="${v}"${(S.tempoNote || "q") === v ? " selected" : ""}>${l}</option>`).join("")}</select><input type="text" inputmode="numeric" data-f="${esc(f)}" value="${esc(S.info[f] || "")}" placeholder="예: 120"></span></label>`
+      : isKey(f)
+      ? (() => { const m = (S.info[f] || "").match(/^([A-G][#b]?)(m)?/) || [], r = m[1] || "", mi = !!m[2];
+        return `<label class="wide">${esc(f)}<span class="keyrow"><select data-key="${esc(f)}" aria-label="으뜸음"><option value="">선택 안 함</option>${KEYS.map(k => `<option value="${k}"${k === r ? " selected" : ""}>${pretty(k)}</option>`).join("")}</select><span class="seg" data-kq="${esc(f)}"><button type="button" data-v=""${!mi ? ' class="on"' : ""}>장조</button><button type="button" data-v="m"${mi ? ' class="on"' : ""}>단조</button></span></span></label>`; })()
       : isForm(f)
       ? `<label class="wide">${esc(f)}<input type="text" data-f="${esc(f)}" data-form value="${esc(S.info[f] || "")}" inputmode="${db.fkbd ? "text" : "none"}" placeholder="눌러서 송폼 버튼으로 입력"></label><div class="fpad" id="fpad" hidden>${formKeys().map(k => `<button type="button" data-fk="${esc(k)}">${esc(k)}</button>`).join("")}<button type="button" class="fx" data-fk="__back">⌫ 하나</button><button type="button" class="fx" data-fk="__clear">모두 지우기</button><button type="button" class="fx" data-fk="__kbd">${db.fkbd ? "버튼만" : "자판 쓰기"}</button><button type="button" class="ok" data-fk="__ok">완료</button></div>`
       : `<label>${esc(f)}<input type="text" data-f="${esc(f)}" value="${esc(S.info[f] || "")}"></label>`).join("");
 }
 const isForm = f => /폼|form/i.test(f);
+const isKey = f => /^(키|key)$/i.test(f);
+const KEYS = ["C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B"];
+function setKey(f, root, minor) { snap(); S.info[f] = root ? root + (minor ? "m" : "") : ""; persist(); render(); }
+$("info").addEventListener("change", e => { const f = e.target.dataset.key; if (f === undefined) return;
+  const mi = !!$("info").querySelector(`[data-kq="${CSS.escape(f)}"] .on[data-v="m"]`); setKey(f, e.target.value, mi); });
+$("info").addEventListener("click", e => { const b = e.target.closest("[data-kq] button"); if (!b) return;
+  const g = b.parentElement, f = g.dataset.kq; g.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+  const r = $("info").querySelector(`[data-key="${CSS.escape(f)}"]`).value; setKey(f, r, b.dataset.v === "m"); });
 function formKeys() { const out = [];
   st.legend.forEach(l => { const sb = subsOf(l); (sb.length ? sb : [l[0]]).forEach(k => { if (k && !out.includes(k)) out.push(k); }); });
   S.sections.forEach(q => { if (q.label && !out.includes(q.label)) out.push(q.label); });
