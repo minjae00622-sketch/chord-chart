@@ -229,7 +229,6 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
           <div class="row"><span>용지 방향</span><div class="seg" data-k="orient"><button data-v="p">세로</button><button data-v="l">가로</button></div></div>
           <div class="toggles">
             <label class="tog"><input type="checkbox" data-k="labelCol">왼쪽 섹션 칸</label>
-            <label class="tog"><input type="checkbox" data-k="labelGray">섹션 칸 회색</label>
             <label class="tog"><input type="checkbox" data-k="half">반 마디 점선</label>
             <label class="tog"><input type="checkbox" data-k="numbers">마디 번호</label>
             <label class="tog"><input type="checkbox" data-k="showMeter">박자표 표시</label>
@@ -412,9 +411,10 @@ function draw(ctx, s, selBar) {
       line(x + lw, y + 7, x + fw, y + 7, MID, .5);
       const v = S.info[f];
       const room = fw - lw - 1.4, fit = (t, pt) => { font(pt, 500); while (ctx.measureText(t).width > room && pt > 5) { pt -= .25; font(pt, 500); } return pt; };
-      if (isMeterF(f)) { const [a, b2] = meterAt(1).split("/"); font(6.8, 800); ctx.textAlign = "center";
-        const mx = x + lw + 1.2 + Math.max(ctx.measureText(a).width, ctx.measureText(b2).width) / 2;
-        text(mx, y + 3.5, a, 6.8, INK, 800); text(mx, y + 6.5, b2, 6.8, INK, 800); ctx.textAlign = "start"; }
+      if (isMeterF(f)) { const [a, b2] = meterAt(1).split("/"); font(6.4, 800); ctx.textAlign = "center";
+        const dw = Math.max(ctx.measureText(a).width, ctx.measureText(b2).width), mx = x + lw + 1.6 + dw / 2;
+        text(mx, y + 3.3, a, 6.4, INK, 800); text(mx, y + 6.5, b2, 6.4, INK, 800); ctx.textAlign = "start";
+        line(mx - dw / 2 - .5, y + 4.15, mx + dw / 2 + .5, y + 4.15, INK, 1.1); }
       else if (v && isTempo(f)) { const nw = noteGlyph(ctx, x + lw + 1.2, y + 5.6, S.tempoNote || "q"), t = "= " + v;
         font(9, 500); let pt = 9; while (ctx.measureText(t).width + nw + .8 > room && pt > 5) { pt -= .25; font(pt, 500); }
         text(x + lw + 1.2 + nw + .8, y + 5.6, t, pt, INK, 500); }
@@ -429,7 +429,6 @@ function draw(ctx, s, selBar) {
   let k0 = 0;
   for (let r = 0; r < st.rows; r++) {
     const nb = RB[r], BW = (R - L - LAB) / nb, y0 = GY + r * rowH;
-    if (LAB && st.labelGray) { ctx.fillStyle = "#f2f2f2"; ctx.fillRect(L, y0, LAB, rowH); }
     ctx.globalAlpha = +st.fillAlpha;
     for (let b = 0; b < nb; b++) { const q = secOf(k0 + b + 1);
       if (q) { ctx.fillStyle = secColor(q); ctx.fillRect(L + LAB + b * BW, y0, BW, rowH); } }
@@ -452,7 +451,7 @@ function draw(ctx, s, selBar) {
       let off = 0, endR = mk.re ? 2.9 : 0;
       if (mk.rs) { repeatSign(ctx, bx, y0, rowH, true); off += 2.9; }
       if (mk.re) repeatSign(ctx, bx + BW, y0, rowH, false);
-      if (st.showMeter) { const m = meterAt(k); if (k === 1 || m !== meterAt(k - 1)) off += drawMeter(ctx, m, bx + off, y0, rowH); }
+      if (st.showMeter && k > 1) { const m = meterAt(k); if (m !== meterAt(k - 1)) off += drawMeter(ctx, m, bx + off, y0, rowH); }
       const dv = mk.v ? 1.2 : 0;
       if (st.printChords && S.chords[k]) drawChords(ctx, toks(S.chords[k]), bx + off, y0 + dv, BW - off - endR, rowH - dv, font);
       if (selBar === k) { ctx.strokeStyle = "#2f6fde"; ctx.lineWidth = .8; ctx.strokeRect(bx + .6, y0 + .6, BW - 1.2, rowH - 1.2); }
@@ -477,6 +476,8 @@ function draw(ctx, s, selBar) {
   return cells;
 }
 const isTempo = f => /템포|tempo|bpm/i.test(f);
+const isCapo = f => /^(카포|capo)$/i.test(f);
+const CAPOS = ["", ...Array.from({length: 11}, (_, i) => String(i - 11)), "0", ...Array.from({length: 11}, (_, i) => "+" + (i + 1))];
 const isMeterF = f => /^(박자|time|meter)$/i.test(f);
 const NOTES = [["q", "4분음표"], ["dq", "점4분음표"], ["e", "8분음표"], ["h", "2분음표"]];
 function noteGlyph(ctx, x, base, type) {
@@ -710,6 +711,8 @@ function renderInfo() {
   $("info").innerHTML = `<label class="wide">곡명 <small style="font-size:12px">(줄을 바꾸면 두 줄 제목, 너무 길면 자동으로 두 줄)</small><textarea data-f="__title" rows="1" class="ttl">${esc(S.title)}</textarea></label>` +
     fields.map(f => isTempo(f)
       ? `<label class="wide">${esc(f)}<span class="tempo"><select data-tn aria-label="기준 음표">${NOTES.map(([v, l]) => `<option value="${v}"${(S.tempoNote || "q") === v ? " selected" : ""}>${l}</option>`).join("")}</select><input type="text" inputmode="numeric" data-f="${esc(f)}" value="${esc(S.info[f] || "")}" placeholder="예: 120"></span></label>`
+      : isCapo(f)
+      ? `<label>${esc(f)}<select data-capo="${esc(f)}" aria-label="카포">${CAPOS.map(c => `<option value="${c}"${c === (S.info[f] || "") ? " selected" : ""}>${c === "" ? "선택 안 함" : c}</option>`).join("")}</select></label>`
       : isMeterF(f)
       ? (() => { const cur = normMeter(S.meter) || "4/4", opts = PRESETS.includes(cur) ? PRESETS : [cur, ...PRESETS];
         return `<label>${esc(f)} <small style="font-size:12px">(첫 마디)</small><select data-meterf aria-label="박자">${opts.map(m => `<option${m === cur ? " selected" : ""}>${m}</option>`).join("")}</select></label>`; })()
@@ -724,6 +727,7 @@ const isForm = f => /폼|form/i.test(f);
 const isKey = f => /^(키|key)$/i.test(f);
 const KEYS = ["C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B"];
 function setKey(f, root, minor) { snap(); S.info[f] = root ? root + (minor ? "m" : "") : ""; persist(); render(); }
+$("info").addEventListener("change", e => { const f = e.target.dataset.capo; if (f === undefined) return; snap(); S.info[f] = e.target.value; persist(); render(); });
 $("info").addEventListener("change", e => { if (!("meterf" in e.target.dataset)) return; snap(); S.meter = e.target.value; persist(); renderMeters(); if (sel) fillBarMeter(); render(); });
 $("info").addEventListener("change", e => { const f = e.target.dataset.key; if (f === undefined) return;
   const mi = !!$("info").querySelector(`[data-kq="${CSS.escape(f)}"] .on[data-v="m"]`); setKey(f, e.target.value, mi); });
