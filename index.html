@@ -374,7 +374,7 @@ function draw(ctx, s, selBar) {
   else if (legB) y = legB;
   const fields = st.fields.split(",").map(t => t.trim()).filter(Boolean);
   if (fields.length) {
-    const GAP = 5, wt = fields.map(f => /폼|form/i.test(f) ? 7 : isTempo(f) ? 1.6 : 1), unit = (R - L - GAP * (fields.length - 1)) / wt.reduce((a, b) => a + b, 0);
+    const GAP = 5, wt = fields.map(f => /폼|form/i.test(f) ? 7 : isTempo(f) ? 1.6 : isKey(f) ? 1.9 : 1), unit = (R - L - GAP * (fields.length - 1)) / wt.reduce((a, b) => a + b, 0);
     let x = L;
     fields.forEach((f, i) => { const fw = unit * wt[i]; font(7.5); text(x, y + 5, f, 7.5, MID);
       const lw = ctx.measureText(f).width + 2;
@@ -384,7 +384,7 @@ function draw(ctx, s, selBar) {
       if (v && isTempo(f)) { const nw = noteGlyph(ctx, x + lw + 1.2, y + 5.6, S.tempoNote || "q"), t = "= " + v;
         font(9, 500); let pt = 9; while (ctx.measureText(t).width + nw + .8 > room && pt > 5) { pt -= .25; font(pt, 500); }
         text(x + lw + 1.2 + nw + .8, y + 5.6, t, pt, INK, 500); }
-      else if (v) { const t = /키|key/i.test(f) ? pretty(v) : v; text(x + lw + 1, y + 5.6, t, fit(t, 9), INK, 500); }
+      else if (v) { const km = isKey(f) && v.match(/^([A-G][#b]?)(m)?$/), t = km ? `${pretty(km[1])} ${km[2] ? "minor" : "major"}` : /키|key/i.test(f) ? pretty(v) : v; text(x + lw + 1, y + 5.6, t, fit(t, 9), INK, 500); }
       x += fw + GAP; });
     y += 11;
   }
@@ -611,8 +611,6 @@ $("clearAll").onclick = e => twoTap(e.currentTarget, "코드 모두 지우기", 
 document.querySelectorAll("[data-tr]").forEach(b => b.onclick = () => {
   const d = +b.dataset.tr; snap();
   for (const k in S.chords) S.chords[k] = toks(S.chords[k]).map(t => trTok(t, d)).join(" ");
-  const keyF = Object.keys(S.info).find(f => /키|key/i.test(f));
-  if (keyF && S.info[keyF]) S.info[keyF] = S.info[keyF].replace(/^([A-G][#b]?)/, m => tn(m, d));
   persist(); renderInfo(); if (sel) cin.value = S.chords[sel] || ""; render(); toast(`반음 ${d > 0 ? "올렸어요" : "내렸어요"}`);
 });
 
