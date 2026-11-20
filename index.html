@@ -71,6 +71,7 @@ input[type=text],input[type=number],select{width:100%;height:42px;font:inherit;f
 .info{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .info label{font-size:13px;color:var(--mute);display:grid;gap:2px}
 .info .wide{grid-column:1/-1}
+.tempo{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:6px}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip{height:40px;padding:0 14px;border:1px solid var(--line);border-radius:20px;background:transparent;font-size:14px;cursor:pointer}
 .chip.warn{color:#c2362b;border-color:currentColor}
@@ -188,7 +189,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
         <div class="sec">
           <h2>색상 범례</h2>
           <label class="tog"><input type="checkbox" data-k="legendOn">범례 보이기</label>
-          <p class="hint">오른쪽 칸은 악보 왼쪽 섹션 칸에 쓸 약어예요. 한 색을 두 섹션이 같이 쓰면 int/out처럼 /로 나눠 적으세요.</p>
+          <p class="hint">오른쪽 칸은 악보 왼쪽 섹션 칸에 쓸 약어예요. 한 색을 두 섹션이 같이 쓰면 Int/Out처럼 /로 나눠 적으세요. 첫 글자는 자동으로 대문자가 돼요.</p>
           <div class="list" id="leg"></div>
           <button class="chip add" id="addLeg">+ 항목 추가</button>
         </div>
@@ -200,7 +201,6 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
           <div class="chips" style="margin-bottom:6px"><button class="chip" data-rows="8">32마디</button><button class="chip" data-rows="12">48마디</button><button class="chip" data-rows="16">64마디</button></div>
           <div class="row"><span>줄 수</span><div class="step" data-k="rows" data-min="2" data-max="30"><button aria-label="줄이기">−</button><output></output><button aria-label="늘리기">+</button></div></div>
           <div class="row"><span>한 줄 마디 수</span><div class="step" data-k="bars" data-min="1" data-max="8"><button aria-label="줄이기">−</button><output></output><button aria-label="늘리기">+</button></div></div>
-          <div class="row"><span>굵은 구분선 (몇 줄마다, 0은 없음)</span><div class="step" data-k="group" data-min="0" data-max="8"><button aria-label="줄이기">−</button><output></output><button aria-label="늘리기">+</button></div></div>
           <div class="row"><span>용지 방향</span><div class="seg" data-k="orient"><button data-v="p">세로</button><button data-v="l">가로</button></div></div>
           <div class="toggles">
             <label class="tog"><input type="checkbox" data-k="labelCol">왼쪽 섹션 칸</label>
@@ -251,13 +251,16 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <script>
 {
 /* ---------- data ---------- */
-const LEGEND = [["인트로·아웃트로","#FFB86B","int/out"],["벌스","#8EC5FF","V"],["프리코러스","#FFE066","pre"],["코러스","#FF8A80","ch"],
-  ["인터루드","#7EDCC4","inter"],["브릿지","#C39BFF","br"],["예비 1","#FF9ECF",""],["예비 2","#BFC5CC",""]];
-const ABBR = {"인트로·아웃트로":"int/out","인트로":"int","아웃트로":"out","벌스":"V","프리코러스":"pre","코러스":"ch","인터루드":"inter","브릿지":"br"};
-const fixLegend = lay => { lay.legend = (lay.legend || []).map(l => [l[0], l[1], l[2] !== undefined ? l[2] : (ABBR[l[0]] || "")]); };
-const subsOf = l => (l[2] || "").split("/").map(t => t.trim()).filter(Boolean);
+const LEGEND = [["인트로·아웃트로","#FFB86B","Int/Out"],["벌스","#8EC5FF","V"],["프리코러스","#FFE066","Pre"],["코러스","#FF8A80","Ch"],
+  ["인터루드","#7EDCC4","Inter"],["브릿지","#C39BFF","Br"],["예비 1","#FF9ECF",""],["예비 2","#BFC5CC",""]];
+const ABBR = {"인트로·아웃트로":"Int/Out","인트로":"Int","아웃트로":"Out","벌스":"V","프리코러스":"Pre","코러스":"Ch","인터루드":"Inter","브릿지":"Br"};
+const capAbbr = t => String(t || "").split("/").map(x => x.trim()).map(x => x ? x[0].toUpperCase() + x.slice(1) : x).join("/");
+const OLD_FIELDS = "키, 템포, 스타일, 폼", NEW_FIELDS = "템포, 키, 카포, 폼";
+const fixLegend = lay => { lay.legend = (lay.legend || []).map(l => [l[0], l[1], capAbbr(l[2] !== undefined ? l[2] : (ABBR[l[0]] || ""))]);
+  if (lay.fields === OLD_FIELDS) lay.fields = NEW_FIELDS; };
+const subsOf = l => capAbbr(l[2]).split("/").map(t => t.trim()).filter(Boolean);
 const LAYOUT = {rows:12,bars:4,group:0,orient:"p",labelCol:true,labelGray:false,half:false,numbers:false,finalBar:true,
-  title:true,fields:"키, 템포, 스타일, 폼",legendOn:true,memoOn:true,memo:3,memoCols:"2",fillAlpha:"0.45",secNames:true,
+  title:true,fields:NEW_FIELDS,legendOn:true,memoOn:true,memo:3,memoCols:"2",fillAlpha:"0.45",secNames:true,
   printChords:true,flats:"1",showMeter:true,legend:LEGEND};
 const KEY = "chordchart-app-v1";
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -327,15 +330,22 @@ function draw(ctx, s, selBar) {
   const font = (pt, w) => { ctx.font = `${w || 400} ${pt * PT}px ${FONT}`; };
   const text = (x, y, t, pt, c, w) => { font(pt, w); ctx.fillStyle = c; ctx.textBaseline = "alphabetic"; ctx.fillText(t, x, y); };
   let y = 10;
-  if (st.title) { text(L, y + 5, "곡명", 8, MID); line(L + 10, y + 7, R, y + 7, INK, .7);
-    if (S.title) text(L + 12, y + 5.6, S.title, 11, INK, 700); y += 12; }
+  if (st.title) { const cx = (L + R) / 2;
+    if (S.title) { let pt = 18; font(pt, 700); while (ctx.measureText(S.title).width > R - L && pt > 9) { pt -= .5; font(pt, 700); }
+      ctx.textAlign = "center"; text(cx, y + 8, S.title, pt, INK, 700); ctx.textAlign = "start"; }
+    else line(cx - 40, y + 9, cx + 40, y + 9, MID, .5);
+    y += 14; }
   const fields = st.fields.split(",").map(t => t.trim()).filter(Boolean);
   if (fields.length) {
-    const fw = (R - L) / fields.length;
-    fields.forEach((f, i) => { const x = L + i * fw; font(7.5); text(x, y + 5, f, 7.5, MID);
+    const GAP = 5, wt = fields.map(f => /폼|form/i.test(f) ? 3 : 1), unit = (R - L - GAP * (fields.length - 1)) / wt.reduce((a, b) => a + b, 0);
+    let x = L;
+    fields.forEach((f, i) => { const fw = unit * wt[i]; font(7.5); text(x, y + 5, f, 7.5, MID);
       const lw = ctx.measureText(f).width + 2;
-      line(x + lw, y + 7, i === fields.length - 1 ? R : x + fw - 4, y + 7, MID, .5);
-      const v = S.info[f]; if (v) text(x + lw + 1, y + 5.6, /키|key/i.test(f) ? pretty(v) : v, 9, INK, 500); });
+      line(x + lw, y + 7, x + fw, y + 7, MID, .5);
+      const v = S.info[f];
+      if (v && isTempo(f)) { const nw = noteGlyph(ctx, x + lw + 1.2, y + 5.6, S.tempoNote || "q"); text(x + lw + 1.2 + nw + .8, y + 5.6, "= " + v, 9, INK, 500); }
+      else if (v) text(x + lw + 1, y + 5.6, /키|key/i.test(f) ? pretty(v) : v, 9, INK, 500);
+      x += fw + GAP; });
     y += 11;
   }
   const items = st.legend.filter(l => l[0].trim());
@@ -352,7 +362,7 @@ function draw(ctx, s, selBar) {
       r.forEach(i => { ctx.fillStyle = items[i][1]; ctx.beginPath();
         ctx.roundRect ? ctx.roundRect(x, cy - 1.8, 3.6, 3.6, .7) : ctx.rect(x, cy - 1.8, 3.6, 3.6); ctx.fill();
         text(x + 5, cy + 1.1, items[i][0], 6.5, "#555");
-        if (items[i][2]) { font(6.5); const nw = ctx.measureText(items[i][0]).width; text(x + 5 + nw + 1.4, cy + 1.1, items[i][2], 6.5, "#222", 700); font(6.5); }
+        if (items[i][2]) { font(6.5); const nw = ctx.measureText(items[i][0]).width; text(x + 5 + nw + 1.4, cy + 1.1, capAbbr(items[i][2]), 6.5, "#222", 700); font(6.5); }
         x += ws[i] + gap; });
       y += 6.5; });
     y += 2;
@@ -392,7 +402,7 @@ function draw(ctx, s, selBar) {
       if (st.printChords && S.chords[k]) drawChords(ctx, toks(S.chords[k]), bx + off, y0 + dv, BW - off - endR, rowH - dv, font);
       if (selBar === k) { ctx.strokeStyle = "#2f6fde"; ctx.lineWidth = .8; ctx.strokeRect(bx + .6, y0 + .6, BW - 1.2, rowH - 1.2); }
     }
-    line(L, y0, R, y0, INK, r === 0 || (st.group && r % st.group === 0) ? 1.2 : .5);
+    line(L, y0, R, y0, INK, r === 0 ? 1.2 : .5);
     k0 += nb;
   }
   cells.forEach(c => { const v = (S.marks[c.k] || {}).v; if (!v) return;
@@ -411,6 +421,20 @@ function draw(ctx, s, selBar) {
     for (let c = 0; c < cols; c++) { const cx = L + c * (cw + 8);
       for (let i = 0; i < st.memo; i++) { const yy = GB + 10 + i * 7; line(cx, yy, cx + cw, yy, LIGHT, .5); } } }
   return cells;
+}
+const isTempo = f => /템포|tempo|bpm/i.test(f);
+const NOTES = [["q", "4분음표"], ["dq", "점4분음표"], ["e", "8분음표"], ["h", "2분음표"]];
+function noteGlyph(ctx, x, base, type) {
+  const rx = .82, ry = .58, cx = x + rx, cy = base - ry, stemTop = cy - 3.1;
+  ctx.save(); ctx.fillStyle = INK; ctx.strokeStyle = INK;
+  ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, -0.35, 0, Math.PI * 2);
+  if (type === "h") { ctx.lineWidth = .28; ctx.stroke(); } else ctx.fill();
+  const sx = cx + rx * .9;
+  ctx.beginPath(); ctx.lineWidth = .2; ctx.moveTo(sx, cy - .15); ctx.lineTo(sx, stemTop); ctx.stroke();
+  if (type === "e") { ctx.beginPath(); ctx.lineWidth = .32; ctx.moveTo(sx, stemTop); ctx.bezierCurveTo(sx + .3, stemTop + 1.1, sx + 1.4, stemTop + 1.3, sx + 1.0, stemTop + 2.4); ctx.stroke(); }
+  let w = rx * 2 + (type === "e" ? 1.1 : .1);
+  if (type === "dq") { ctx.beginPath(); ctx.arc(x + rx * 2 + .65, cy, .25, 0, Math.PI * 2); ctx.fill(); w += .9; }
+  ctx.restore(); return w;
 }
 function repeatSign(ctx, x, y, h, start) {
   const d = start ? 1 : -1, lw = (w, xx) => { ctx.beginPath(); ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = w * PT; ctx.moveTo(xx, y); ctx.lineTo(xx, y + h); ctx.stroke(); };
@@ -586,12 +610,15 @@ $("addMeter").onclick = () => { snap(); const k = sel || 1; S.meters.push({m: "3
 function renderInfo() {
   const fields = st.fields.split(",").map(t => t.trim()).filter(Boolean);
   $("info").innerHTML = `<label class="wide">곡명<input type="text" data-f="__title" value="${esc(S.title)}"></label>` +
-    fields.map(f => `<label>${esc(f)}<input type="text" data-f="${esc(f)}" value="${esc(S.info[f] || "")}"></label>`).join("");
+    fields.map(f => isTempo(f)
+      ? `<label>${esc(f)}<span class="tempo"><select data-tn aria-label="기준 음표">${NOTES.map(([v, l]) => `<option value="${v}"${(S.tempoNote || "q") === v ? " selected" : ""}>${l}</option>`).join("")}</select><input type="text" inputmode="numeric" data-f="${esc(f)}" value="${esc(S.info[f] || "")}" placeholder="예: 120"></span></label>`
+      : `<label${/폼|form/i.test(f) ? ' class="wide"' : ""}>${esc(f)}<input type="text" data-f="${esc(f)}" value="${esc(S.info[f] || "")}"></label>`).join("");
 }
+$("info").addEventListener("change", e => { if (!("tn" in e.target.dataset)) return; snap(); S.tempoNote = e.target.value; persist(); render(); });
 $("info").addEventListener("input", e => { const f = e.target.dataset.f; if (!f) return; snap("info" + f);
   if (f === "__title") S.title = e.target.value; else S.info[f] = e.target.value; persist(); render(); renderSongs(); });
 function renderLegend() {
-  $("leg").innerHTML = st.legend.map(([t, c, a], i) => `<div class="li"><input type="color" value="${c}" data-i="${i}" data-f="c" aria-label="색"><input type="text" value="${esc(t)}" data-i="${i}" data-f="n" aria-label="이름"><input type="text" value="${esc(a || "")}" data-i="${i}" data-f="a" placeholder="약어" aria-label="악보에 쓸 약어"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("");
+  $("leg").innerHTML = st.legend.map(([t, c, a], i) => `<div class="li"><input type="color" value="${c}" data-i="${i}" data-f="c" aria-label="색"><input type="text" value="${esc(t)}" data-i="${i}" data-f="n" aria-label="이름"><input type="text" value="${esc(a || "")}" data-i="${i}" data-f="a" placeholder="약어" autocapitalize="words" aria-label="악보에 쓸 약어"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("");
 }
 function secOptions() { const out = [];
   st.legend.forEach((l, j) => { const subs = subsOf(l), names = l[0].split("·").map(t => t.trim());
@@ -632,7 +659,7 @@ document.querySelectorAll("[data-rows]").forEach(b => b.onclick = () => { snap()
 const leg = $("leg");
 leg.addEventListener("input", e => { const i = +e.target.dataset.i; if (isNaN(i)) return; snap("leg" + i + e.target.type);
   const f = e.target.dataset.f;
-  if (f === "c") st.legend[i][1] = e.target.value; else { st.legend[i][f === "a" ? 2 : 0] = e.target.value; renderSecs(); } update(); });
+  if (f === "c") st.legend[i][1] = e.target.value; else if (f === "a") { st.legend[i][2] = capAbbr(e.target.value); renderSecs(); } else { st.legend[i][0] = e.target.value; renderSecs(); } update(); });
 leg.addEventListener("click", e => { const b = e.target.closest(".x"); if (!b) return; snap(); const d = +b.dataset.i;
   st.legend.splice(d, 1); S.sections = S.sections.filter(q => q.idx !== d).map(q => (q.idx > d ? (q.idx--, q) : q));
   renderLegend(); renderSecs(); update(); });
