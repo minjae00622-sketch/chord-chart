@@ -205,6 +205,12 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
           <label class="tog"><input type="checkbox" data-k="secNames">섹션 칸에 이름 쓰기</label>
         </div>
         <div class="sec">
+          <h2>내 송폼 목록</h2>
+          <p class="hint">V1, V2, Int/V처럼 자주 쓰는 송폼을 이름과 색으로 저장해 두면, 송폼 구간 종류에서 ★로 골라 쓸 수 있어요. 모든 곡에서 같이 쓰여요.</p>
+          <div class="list" id="cusList"></div>
+          <button class="chip add" id="addCus">+ 내 송폼 추가</button>
+        </div>
+        <div class="sec">
           <h2>색상 범례</h2>
           <label class="tog"><input type="checkbox" data-k="legendOn">범례 보이기</label>
           <p class="hint">오른쪽 칸은 악보 왼쪽 섹션 칸에 쓸 약어예요. 한 색을 두 섹션이 같이 쓰면 Int/Out처럼 /로 나눠 적으세요. 첫 글자는 자동으로 대문자가 돼요.</p>
@@ -268,18 +274,23 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <script>
 {
 /* ---------- data ---------- */
-const LEGEND = [["인트로·아웃트로","#FFB86B","Int/Out"],["벌스","#8EC5FF","V"],["프리코러스","#FFE066","Pre"],["코러스","#FF8A80","Ch"],
+const LEGEND = [["인트로·아웃트로","#FFB86B","Int/Out"],["벌스","#FFE066","V"],["프리코러스","#8EC5FF","Pre"],["코러스","#FF8A80","Ch"],
   ["인터루드","#5CCFE6","Inter"],["브릿지","#C39BFF","Br"],["포스트코러스","#FF9ECF","Post"],["솔로","#7CC66B","Solo"]];
 const ABBR = {"인트로·아웃트로":"Int/Out","인트로":"Int","아웃트로":"Out","벌스":"V","프리코러스":"Pre","코러스":"Ch","인터루드":"Inter","브릿지":"Br"};
 const capAbbr = t => String(t || "").split("/").map(x => x.trim()).map(x => x ? x[0].toUpperCase() + x.slice(1) : x).join("/");
 const OLD_FIELDS = ["키, 템포, 스타일, 폼", "템포, 키, 카포, 폼", "템포, 키, 카포, 송폼"], NEW_FIELDS = "키, 카포, 템포, 송폼";
 const SPARE = {"예비 1": ["포스트코러스", "#FF9ECF", "Post"], "예비 2": ["솔로", "#7CC66B", "Solo"]};
 const RECOLOR = {"#2F9E44": "#7CC66B", "#7EDCC4": "#5CCFE6"};
+const swapVP = lay => { if (lay.vpSwap) return; lay.vpSwap = 1;
+  const v = lay.legend.find(l => l[0] === "벌스"), p = lay.legend.find(l => l[0] === "프리코러스");
+  if (v && p && v[1].toUpperCase() === "#8EC5FF" && p[1].toUpperCase() === "#FFE066") { v[1] = "#FFE066"; p[1] = "#8EC5FF"; } };
 const fixLegend = lay => { lay.legend = (lay.legend || []).map(l => SPARE[l[0]] && !l[2] ? SPARE[l[0]].slice() : [l[0], RECOLOR[String(l[1]).toUpperCase()] || l[1], capAbbr(l[2] !== undefined ? l[2] : (ABBR[l[0]] || ""))]);
   if (OLD_FIELDS.includes(lay.fields)) { lay.fields = NEW_FIELDS; return true; } };
 const fixSong = s => { if (fixLegend(s.layout) && s.info["폼"] && !s.info["송폼"]) { s.info["송폼"] = s.info["폼"]; delete s.info["폼"]; } };
-const secColor = q => q.color || (st.legend[q.idx] || [])[1] || "#ddd";
-const secLabel = q => { if (q.label) return q.label; const lg = st.legend[q.idx] || ["", "", ""], sb = subsOf(lg); return sb[q.sub || 0] || sb[0] || lg[0]; };
+const customOf = id => (db.customSecs || []).find(c => c.id === id);
+const secValid = q => q.cid ? !!customOf(q.cid) : !!st.legend[q.idx];
+const secColor = q => q.color || (q.cid ? (customOf(q.cid) || {}).color : (st.legend[q.idx] || [])[1]) || "#ddd";
+const secLabel = q => { if (q.label) return q.label; if (q.cid) return (customOf(q.cid) || {}).label || ""; const lg = st.legend[q.idx] || ["", "", ""], sb = subsOf(lg); return sb[q.sub || 0] || sb[0] || lg[0]; };
 const subsOf = l => capAbbr(l[2]).split("/").map(t => t.trim()).filter(Boolean);
 const LAYOUT = {rows:12,bars:4,group:0,orient:"p",labelCol:true,labelGray:false,half:false,numbers:false,finalBar:true,
   title:true,fields:NEW_FIELDS,legendOn:true,memoOn:true,memo:3,memoCols:"2",fillAlpha:"0.45",secNames:true,
@@ -291,7 +302,8 @@ const newSong = lay => ({id: uid(), title: "", meter: "4/4", meters: [], marks: 
 let db = null;
 try { db = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
 if (!db || !Array.isArray(db.songs) || !db.songs.length) { const s = newSong(); db = {songs: [s], cur: s.id, kbd: false}; }
-db.songs.forEach(s => { s.layout = Object.assign(clone(LAYOUT), s.layout); s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; s.meter = s.meter || "4/4"; s.meters = s.meters || []; s.marks = s.marks || {}; fixSong(s); });
+db.songs.forEach(s => { s.layout = Object.assign(clone(LAYOUT), s.layout); s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; s.meter = s.meter || "4/4"; s.meters = s.meters || []; s.marks = s.marks || {}; fixSong(s); swapVP(s.layout); });
+db.customSecs = db.customSecs || [];
 let S = db.songs.find(s => s.id === db.cur) || db.songs[0];
 let st = S.layout;
 let saveT = 0;
@@ -354,7 +366,8 @@ function draw(ctx, s, selBar) {
   const text = (x, y, t, pt, c, w) => { font(pt, w); ctx.fillStyle = c; ctx.textBaseline = "alphabetic"; ctx.fillText(t, x, y); };
   let y = 10;
   /* legend block, top right, two rows */
-  const items = st.legend.filter(l => l[0].trim()), lab = it => it[2] ? capAbbr(it[2]) : it[0];
+  const usedC = [...new Set(S.sections.filter(q => q.cid && customOf(q.cid)).map(q => q.cid))].map(customOf);
+  const items = st.legend.filter(l => l[0].trim()).concat(usedC.map(c => [c.label, c.color, ""])), lab = it => it[2] ? capAbbr(it[2]) : it[0];
   let legX = R, legB = 0;
   if (st.legendOn && items.length) {
     const cols = Math.ceil(items.length / 2); font(6.5, 700);
@@ -391,7 +404,7 @@ function draw(ctx, s, selBar) {
   const GY = y + 3, memoOn = st.memoOn && st.memo > 0, memoH = memoOn ? st.memo * 7 + 6 : 0;
   const GB = H - 10 - memoH - (memoH ? 4 : 0), rowH = (GB - GY) / st.rows, LAB = st.labelCol ? 10 : 0, RB = rowBarsOf();
   const secOf = k => { for (let i = S.sections.length - 1; i >= 0; i--) { const q = S.sections[i];
-    if (k >= q.from && k <= q.to && st.legend[q.idx]) return q; } return null; };
+    if (k >= q.from && k <= q.to && secValid(q)) return q; } return null; };
   let k0 = 0;
   for (let r = 0; r < st.rows; r++) {
     const nb = RB[r], BW = (R - L - LAB) / nb, y0 = GY + r * rowH;
@@ -403,7 +416,7 @@ function draw(ctx, s, selBar) {
     if (LAB && q0) { ctx.fillStyle = secColor(q0); ctx.fillRect(L, y0, LAB, rowH); }
     ctx.globalAlpha = 1;
     if (LAB && st.secNames) {
-      const qs = S.sections.find(q => q.from >= k0 + 1 && q.from <= k0 + nb && st.legend[q.idx]);
+      const qs = S.sections.find(q => q.from >= k0 + 1 && q.from <= k0 + nb && secValid(q));
       if (qs) { const t = secLabel(qs); let sz = 7.5; font(sz, 700);
         while (ctx.measureText(t).width > LAB - 1.4 && sz > 3.2) { sz -= .25; font(sz, 700); }
         text(L + .7, y0 + Math.min(4.2, rowH * .5), t, sz, "#222", 700); }
@@ -693,6 +706,7 @@ $("info").addEventListener("click", e => { const b = e.target.closest("[data-kq]
   const r = $("info").querySelector(`[data-key="${CSS.escape(f)}"]`).value; setKey(f, r, b.dataset.v === "m"); });
 function formKeys() { const out = [];
   st.legend.forEach(l => { const sb = subsOf(l); (sb.length ? sb : [l[0]]).forEach(k => { if (k && !out.includes(k)) out.push(k); }); });
+  db.customSecs.forEach(c => { if (c.label && !out.includes(c.label)) out.push(c.label); });
   S.sections.forEach(q => { if (q.label && !out.includes(q.label)) out.push(q.label); });
   return out; }
 $("info").addEventListener("focusin", e => { if ("form" in e.target.dataset) { const p = $("fpad"); if (p) p.hidden = false; } });
@@ -719,14 +733,18 @@ function secOptions() { const out = [];
   st.legend.forEach((l, j) => { const subs = subsOf(l), names = l[0].split("·").map(t => t.trim());
     if (subs.length > 1) subs.forEach((a, k) => out.push([`${j}:${k}`, `${names[k] || l[0]} (${a})`]));
     else out.push([`${j}:0`, `${l[0] || "(이름 없음)"}${subs[0] ? ` (${subs[0]})` : ""}`]); });
+  db.customSecs.forEach(c => out.push([`c:${c.id}`, `★ ${c.label}`]));
   return out; }
 function renderSecs() {
   $("secList").innerHTML = S.sections.map((q, i) => { const col = secColor(q), lg = st.legend[q.idx] || [];
-    return `<div class="si"><select data-i="${i}" aria-label="섹션 종류">${secOptions().map(([v, l]) => `<option value="${v}"${v === q.idx + ":" + (q.sub || 0) ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>` +
+    return `<div class="si"><select data-i="${i}" aria-label="섹션 종류">${secOptions().map(([v, l]) => `<option value="${v}"${v === (q.cid ? "c:" + q.cid : q.idx + ":" + (q.sub || 0)) ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>` +
     `<input type="text" data-i="${i}" data-f="label" value="${esc(q.label || "")}" placeholder="${esc(secLabel(Object.assign({}, q, {label: ""})))}" aria-label="악보에 쓸 이름">` +
     `<button type="button" class="sw" data-i="${i}" data-pal style="background:${col}" aria-label="색 바꾸기"></button>` +
     `<div class="r2"><span>마디</span><input type="number" inputmode="numeric" min="1" value="${q.from}" data-i="${i}" data-f="from" aria-label="시작 마디"><span>~</span><input type="number" inputmode="numeric" min="1" value="${q.to}" data-i="${i}" data-f="to" aria-label="끝 마디"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>` +
     `<div class="pal" id="pal${i}" hidden>${st.legend.map(l => `<button type="button" data-i="${i}" data-col="${l[1]}" class="${l[1].toLowerCase() === col.toLowerCase() ? "on" : ""}" style="background:${l[1]}" aria-label="${esc(l[0])} 색"></button>`).join("")}<input type="color" data-i="${i}" data-f="color" value="${col}" aria-label="직접 고르기"><button type="button" class="reset" data-i="${i}" data-col="">기본색</button></div></div>`; }).join("") || '<p class="hint">아직 등록한 구간이 없어요.</p>';
+}
+function renderCus() {
+  $("cusList").innerHTML = db.customSecs.map((c, i) => `<div class="li"><input type="color" value="${c.color}" data-ci="${i}" data-f="color" aria-label="색"><input type="text" value="${esc(c.label)}" data-ci="${i}" data-f="label" aria-label="이름"><span></span><button class="x" data-ci="${i}" aria-label="삭제">×</button></div>`).join("") || '<p class="hint">아직 저장한 송폼이 없어요.</p>';
 }
 function renderRows() {
   $("rowList").innerHTML = S.rowBars.map((o, i) => `<div class="ri"><span>줄</span><input type="number" inputmode="numeric" min="1" value="${o.row}" data-i="${i}" data-f="row" aria-label="줄 번호"><span>마디 수</span><input type="number" inputmode="numeric" min="1" max="8" value="${o.bars}" data-i="${i}" data-f="bars" aria-label="마디 수"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("");
@@ -741,7 +759,7 @@ function syncUI() {
   document.querySelectorAll(".seg").forEach(el => el.querySelectorAll("button").forEach(b => b.classList.toggle("on", String(st[el.dataset.k]) === b.dataset.v)));
   document.querySelectorAll(".tog input[data-k]").forEach(i => i.checked = !!st[i.dataset.k]);
   $("fields").value = st.fields; $("kbd").checked = !!db.kbd;
-  renderInfo(); renderLegend(); renderSecs(); renderRows(); renderSongs(); renderMeters();
+  renderInfo(); renderLegend(); renderSecs(); renderRows(); renderSongs(); renderMeters(); renderCus();
 }
 const update = () => { persist(); render(); };
 
@@ -771,7 +789,8 @@ $("secList").addEventListener("input", e => { const t = e.target, i = +t.dataset
   else if (f === "color") { snap("sc" + i); q.color = t.value; t.closest(".si").querySelector(".sw").style.background = t.value; }
   else { const v = parseInt(t.value, 10); if (isNaN(v)) return; snap(f + i); q[f] = v; }
   update(); });
-$("secList").addEventListener("change", e => { if (e.target.tagName === "SELECT") { snap(); const [j, k] = e.target.value.split(":").map(Number); const q = S.sections[+e.target.dataset.i]; q.idx = j; q.sub = k; delete q.label; delete q.color; renderSecs(); update(); } });
+$("secList").addEventListener("change", e => { if (e.target.tagName === "SELECT") { snap(); const q = S.sections[+e.target.dataset.i], v = e.target.value; delete q.label; delete q.color;
+    if (v.startsWith("c:")) { q.cid = v.slice(2); q.idx = -1; q.sub = 0; } else { const [j, k] = v.split(":").map(Number); delete q.cid; q.idx = j; q.sub = k; } renderSecs(); update(); } });
 $("secList").addEventListener("click", e => {
   const sw = e.target.closest("[data-pal]"); if (sw) { const p = $("pal" + sw.dataset.i); p.hidden = !p.hidden; return; }
   const pc = e.target.closest("[data-col]"); if (pc) { const i = +pc.dataset.i, q = S.sections[i]; snap();
@@ -779,6 +798,14 @@ $("secList").addEventListener("click", e => {
   const b = e.target.closest(".x"); if (!b) return; snap(); S.sections.splice(+b.dataset.i, 1); renderSecs(); update(); });
 $("rowList").addEventListener("input", onNum(() => S.rowBars));
 $("rowList").addEventListener("click", e => { const b = e.target.closest(".x"); if (!b) return; snap(); S.rowBars.splice(+b.dataset.i, 1); renderRows(); update(); });
+$("cusList").addEventListener("input", e => { const i = +e.target.dataset.ci, f = e.target.dataset.f; if (isNaN(i) || !f) return;
+  db.customSecs[i][f] = f === "label" ? e.target.value.trim() || "?" : e.target.value; persist(); renderSecs(); render(); });
+$("cusList").addEventListener("click", e => { const b = e.target.closest(".x"); if (!b) return; snap();
+  const c = db.customSecs.splice(+b.dataset.ci, 1)[0];
+  db.songs.forEach(sg => sg.sections.forEach(q => { if (q.cid === c.id) { delete q.cid; q.idx = 0; q.sub = 0; q.label = q.label || c.label; q.color = q.color || c.color; } }));
+  persist(); renderCus(); renderSecs(); render(); });
+$("addCus").onclick = () => { const pal = ["#F4A3A3", "#9AD0F5", "#F7D774", "#B7E4A8", "#D7B8F3", "#FFC48C"];
+  db.customSecs.push({id: uid(), label: "V" + (db.customSecs.length + 1), color: pal[db.customSecs.length % pal.length]}); persist(); renderCus(); renderSecs(); };
 $("addSec").onclick = () => { snap(); const last = S.sections[S.sections.length - 1], from = last ? last.to + 1 : 1;
   S.sections.push({idx: Math.max(0, last ? Math.min(last.idx + 1, st.legend.length - 1) : 0), from, to: from + 7}); renderSecs(); update(); };
 $("addRow").onclick = () => { snap(); const last = S.rowBars[S.rowBars.length - 1];
@@ -839,11 +866,12 @@ async function doSave(kind) {
 }
 $("pdf").onclick = () => doSave("pdf");
 $("png").onclick = () => doSave("png");
-$("exportJson").onclick = async () => { try { await saveFile(`코드표_백업_${new Date().toISOString().slice(0, 10)}.json`, new Blob([JSON.stringify({app: "chordchart", v: 1, songs: db.songs})], {type: "application/json"})); toast("백업 파일을 저장했어요"); } catch (e) { toast("백업하지 못했어요"); } };
+$("exportJson").onclick = async () => { try { await saveFile(`코드표_백업_${new Date().toISOString().slice(0, 10)}.json`, new Blob([JSON.stringify({app: "chordchart", v: 1, songs: db.songs, customSecs: db.customSecs})], {type: "application/json"})); toast("백업 파일을 저장했어요"); } catch (e) { toast("백업하지 못했어요"); } };
 $("importJson").onchange = async e => { const f = e.target.files[0]; if (!f) return;
   try { const o = JSON.parse(await f.text()); if (!o || !Array.isArray(o.songs)) throw 0;
+    (o.customSecs || []).forEach(c => { if (c && c.id && !customOf(c.id)) db.customSecs.push(c); });
     let n = 0; o.songs.forEach(s => { if (!s || !s.layout) return; s.layout = Object.assign(clone(LAYOUT), s.layout);
-      s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; s.meter = s.meter || "4/4"; s.meters = s.meters || []; s.marks = s.marks || {}; fixSong(s);
+      s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; s.meter = s.meter || "4/4"; s.meters = s.meters || []; s.marks = s.marks || {}; fixSong(s); swapVP(s.layout);
       const i = db.songs.findIndex(x => x.id === s.id); if (i >= 0) db.songs[i] = s; else db.songs.push(s); n++; });
     openSong(db.songs.find(x => x.id === S.id) || db.songs[0]); toast(`${n}곡을 불러왔어요`);
   } catch (err) { toast("백업 파일을 읽지 못했어요"); }
