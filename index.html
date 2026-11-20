@@ -258,11 +258,12 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 {
 /* ---------- data ---------- */
 const LEGEND = [["인트로·아웃트로","#FFB86B","Int/Out"],["벌스","#8EC5FF","V"],["프리코러스","#FFE066","Pre"],["코러스","#FF8A80","Ch"],
-  ["인터루드","#7EDCC4","Inter"],["브릿지","#C39BFF","Br"],["예비 1","#FF9ECF",""],["예비 2","#BFC5CC",""]];
+  ["인터루드","#7EDCC4","Inter"],["브릿지","#C39BFF","Br"],["포스트코러스","#FF9ECF","Post"],["솔로","#2F9E44","Solo"]];
 const ABBR = {"인트로·아웃트로":"Int/Out","인트로":"Int","아웃트로":"Out","벌스":"V","프리코러스":"Pre","코러스":"Ch","인터루드":"Inter","브릿지":"Br"};
 const capAbbr = t => String(t || "").split("/").map(x => x.trim()).map(x => x ? x[0].toUpperCase() + x.slice(1) : x).join("/");
-const OLD_FIELDS = ["키, 템포, 스타일, 폼", "템포, 키, 카포, 폼"], NEW_FIELDS = "템포, 키, 카포, 송폼";
-const fixLegend = lay => { lay.legend = (lay.legend || []).map(l => [l[0], l[1], capAbbr(l[2] !== undefined ? l[2] : (ABBR[l[0]] || ""))]);
+const OLD_FIELDS = ["키, 템포, 스타일, 폼", "템포, 키, 카포, 폼", "템포, 키, 카포, 송폼"], NEW_FIELDS = "키, 카포, 템포, 송폼";
+const SPARE = {"예비 1": ["포스트코러스", "#FF9ECF", "Post"], "예비 2": ["솔로", "#2F9E44", "Solo"]};
+const fixLegend = lay => { lay.legend = (lay.legend || []).map(l => SPARE[l[0]] && !l[2] ? SPARE[l[0]].slice() : [l[0], l[1], capAbbr(l[2] !== undefined ? l[2] : (ABBR[l[0]] || ""))]);
   if (OLD_FIELDS.includes(lay.fields)) { lay.fields = NEW_FIELDS; return true; } };
 const fixSong = s => { if (fixLegend(s.layout) && s.info["폼"] && !s.info["송폼"]) { s.info["송폼"] = s.info["폼"]; delete s.info["폼"]; } };
 const subsOf = l => capAbbr(l[2]).split("/").map(t => t.trim()).filter(Boolean);
@@ -315,7 +316,7 @@ const pretty = t => t.replace(/#/g, "♯").replace(/(^|[^A-Za-z])b(?=\d)|(?<=[A-
 const toks = s => (s || "").trim().split(/\s+/).filter(Boolean);
 const MRX = /^\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*$/;
 const normMeter = t => { const m = String(t || "").match(MRX); return m && +m[1] > 0 && +m[2] > 0 ? `${+m[1]}/${+m[2]}` : null; };
-const PRESETS = ["4/4", "3/4", "2/4", "5/4", "6/8", "7/8", "9/8", "12/8"];
+const PRESETS = ["4/4", "3/4", "2/4", "1/4", "5/4", "6/8", "3/8", "7/8", "9/8", "12/8"];
 function meterAt(k) { for (let i = S.meters.length - 1; i >= 0; i--) { const q = S.meters[i];
   if (k >= q.from && k <= q.to && normMeter(q.m)) return normMeter(q.m); } return normMeter(S.meter) || "4/4"; }
 
@@ -345,14 +346,17 @@ function draw(ctx, s, selBar) {
     y += 14; }
   const fields = st.fields.split(",").map(t => t.trim()).filter(Boolean);
   if (fields.length) {
-    const GAP = 5, wt = fields.map(f => /폼|form/i.test(f) ? 3 : 1), unit = (R - L - GAP * (fields.length - 1)) / wt.reduce((a, b) => a + b, 0);
+    const GAP = 5, wt = fields.map(f => /폼|form/i.test(f) ? 7 : isTempo(f) ? 1.6 : 1), unit = (R - L - GAP * (fields.length - 1)) / wt.reduce((a, b) => a + b, 0);
     let x = L;
     fields.forEach((f, i) => { const fw = unit * wt[i]; font(7.5); text(x, y + 5, f, 7.5, MID);
       const lw = ctx.measureText(f).width + 2;
       line(x + lw, y + 7, x + fw, y + 7, MID, .5);
       const v = S.info[f];
-      if (v && isTempo(f)) { const nw = noteGlyph(ctx, x + lw + 1.2, y + 5.6, S.tempoNote || "q"); text(x + lw + 1.2 + nw + .8, y + 5.6, "= " + v, 9, INK, 500); }
-      else if (v) text(x + lw + 1, y + 5.6, /키|key/i.test(f) ? pretty(v) : v, 9, INK, 500);
+      const room = fw - lw - 1.4, fit = (t, pt) => { font(pt, 500); while (ctx.measureText(t).width > room && pt > 5) { pt -= .25; font(pt, 500); } return pt; };
+      if (v && isTempo(f)) { const nw = noteGlyph(ctx, x + lw + 1.2, y + 5.6, S.tempoNote || "q"), t = "= " + v;
+        font(9, 500); let pt = 9; while (ctx.measureText(t).width + nw + .8 > room && pt > 5) { pt -= .25; font(pt, 500); }
+        text(x + lw + 1.2 + nw + .8, y + 5.6, t, pt, INK, 500); }
+      else if (v) { const t = /키|key/i.test(f) ? pretty(v) : v; text(x + lw + 1, y + 5.6, t, fit(t, 9), INK, 500); }
       x += fw + GAP; });
     y += 11;
   }
