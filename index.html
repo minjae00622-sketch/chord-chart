@@ -85,7 +85,17 @@ input[type=text],input[type=number],select{width:100%;height:42px;font:inherit;f
 .list{display:grid;gap:8px}
 .li{display:grid;grid-template-columns:44px minmax(0,1fr) 78px 44px;gap:8px;align-items:center}
 .li input[type=color]{width:44px;height:40px;border:1px solid var(--line);border-radius:10px;padding:3px;background:transparent;cursor:pointer}
-.si{display:grid;grid-template-columns:minmax(0,1fr) 60px 10px 60px 44px;gap:6px;align-items:center}
+.si{display:grid;grid-template-columns:minmax(0,1fr) 76px 44px;gap:6px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:12px}
+.si .r2{grid-column:1/-1;display:flex;align-items:center;gap:6px;font-size:14px}
+.si .r2 input{width:64px}
+.si .r2 .x{margin-left:auto}
+.sw{width:44px;height:40px;border-radius:10px;border:1px solid var(--line);cursor:pointer}
+.pal{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.pal[hidden]{display:none}
+.pal button{width:36px;height:36px;border-radius:9px;border:2px solid transparent;cursor:pointer}
+.pal button.on{border-color:var(--ink)}
+.pal .reset{width:auto;padding:0 10px;background:transparent;border:1px solid var(--line);font-size:13px}
+.pal input[type=color]{width:44px;height:36px;border:1px solid var(--line);border-radius:9px;padding:2px;background:transparent}
 .ri{display:grid;grid-template-columns:auto 60px auto 60px 44px;gap:8px;align-items:center;font-size:14px}
 .x{width:44px;height:40px;border:0;background:transparent;color:var(--mute);font-size:20px;cursor:pointer;border-radius:10px}
 .x:hover{background:var(--line)}
@@ -187,7 +197,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
       <section class="pn" data-panel="form" hidden>
         <div class="sec">
           <h2>송폼 구간</h2>
-          <p class="hint">구간을 등록하면 해당 마디가 범례 색으로 칠해져요.</p>
+          <p class="hint">구간을 등록하면 해당 마디가 색으로 칠해져요. 가운데 칸에 V1, V2, Int/V처럼 악보에 쓸 이름을 직접 적을 수 있고, 오른쪽 색 버튼을 누르면 범례 색 중에서 고르거나 원하는 색을 직접 고를 수 있어요.</p>
           <div class="list" id="secList"></div>
           <button class="chip add" id="addSec">+ 구간 추가</button>
           <div class="row" style="margin-top:6px"><span>색 진하기</span><div class="seg" data-k="fillAlpha"><button data-v="0.25">연하게</button><button data-v="0.45">보통</button><button data-v="0.7">진하게</button></div></div>
@@ -267,6 +277,8 @@ const RECOLOR = {"#2F9E44": "#7CC66B", "#7EDCC4": "#5CCFE6"};
 const fixLegend = lay => { lay.legend = (lay.legend || []).map(l => SPARE[l[0]] && !l[2] ? SPARE[l[0]].slice() : [l[0], RECOLOR[String(l[1]).toUpperCase()] || l[1], capAbbr(l[2] !== undefined ? l[2] : (ABBR[l[0]] || ""))]);
   if (OLD_FIELDS.includes(lay.fields)) { lay.fields = NEW_FIELDS; return true; } };
 const fixSong = s => { if (fixLegend(s.layout) && s.info["폼"] && !s.info["송폼"]) { s.info["송폼"] = s.info["폼"]; delete s.info["폼"]; } };
+const secColor = q => q.color || (st.legend[q.idx] || [])[1] || "#ddd";
+const secLabel = q => { if (q.label) return q.label; const lg = st.legend[q.idx] || ["", "", ""], sb = subsOf(lg); return sb[q.sub || 0] || sb[0] || lg[0]; };
 const subsOf = l => capAbbr(l[2]).split("/").map(t => t.trim()).filter(Boolean);
 const LAYOUT = {rows:12,bars:4,group:0,orient:"p",labelCol:true,labelGray:false,half:false,numbers:false,finalBar:true,
   title:true,fields:NEW_FIELDS,legendOn:true,memoOn:true,memo:3,memoCols:"2",fillAlpha:"0.45",secNames:true,
@@ -340,11 +352,25 @@ function draw(ctx, s, selBar) {
   const font = (pt, w) => { ctx.font = `${w || 400} ${pt * PT}px ${FONT}`; };
   const text = (x, y, t, pt, c, w) => { font(pt, w); ctx.fillStyle = c; ctx.textBaseline = "alphabetic"; ctx.fillText(t, x, y); };
   let y = 10;
-  if (st.title) { const cx = (L + R) / 2;
-    if (S.title) { let pt = 18; font(pt, 700); while (ctx.measureText(S.title).width > R - L && pt > 9) { pt -= .5; font(pt, 700); }
+  /* legend block, top right, two rows */
+  const items = st.legend.filter(l => l[0].trim()), lab = it => it[2] ? capAbbr(it[2]) : it[0];
+  let legX = R, legB = 0;
+  if (st.legendOn && items.length) {
+    const cols = Math.ceil(items.length / 2); font(6.5, 700);
+    const colW = Array.from({length: cols}, (_, c) => Math.max(...[items[c], items[c + cols]].filter(Boolean).map(it => 4.6 + ctx.measureText(lab(it)).width)) + 2.4);
+    const bw = colW.reduce((a, b) => a + b, 0) - 2.4; legX = R - bw;
+    items.forEach((it, i) => { const c = i % cols, r = Math.floor(i / cols);
+      const x = legX + colW.slice(0, c).reduce((a, b) => a + b, 0), cy = 9.5 + r * 5;
+      ctx.fillStyle = it[1]; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, cy - 1.6, 3.2, 3.2, .6) : ctx.rect(x, cy - 1.6, 3.2, 3.2); ctx.fill();
+      text(x + 4.4, cy + 1.1, lab(it), 6.5, "#222", 700); });
+    legB = 9.5 + 5 + 2.5;
+  }
+  if (st.title) { const cx = (L + R) / 2, maxW = legX < R ? Math.max(30, 2 * (legX - 4 - cx)) : R - L;
+    if (S.title) { let pt = 18; font(pt, 700); while (ctx.measureText(S.title).width > maxW && pt > 8) { pt -= .5; font(pt, 700); }
       ctx.textAlign = "center"; text(cx, y + 8, S.title, pt, INK, 700); ctx.textAlign = "start"; }
-    else line(cx - 40, y + 9, cx + 40, y + 9, MID, .5);
+    else line(cx - Math.min(40, maxW / 2), y + 9, cx + Math.min(40, maxW / 2), y + 9, MID, .5);
     y += 14; }
+  else if (legB) y = legB;
   const fields = st.fields.split(",").map(t => t.trim()).filter(Boolean);
   if (fields.length) {
     const GAP = 5, wt = fields.map(f => /폼|form/i.test(f) ? 7 : isTempo(f) ? 1.6 : 1), unit = (R - L - GAP * (fields.length - 1)) / wt.reduce((a, b) => a + b, 0);
@@ -361,24 +387,6 @@ function draw(ctx, s, selBar) {
       x += fw + GAP; });
     y += 11;
   }
-  const items = st.legend.filter(l => l[0].trim());
-  if (st.legendOn && items.length) {
-    font(6.5);
-    const lab = it => it[2] ? capAbbr(it[2]) : it[0];
-    font(7, 700); const ws = items.map(it => 5 + ctx.measureText(lab(it)).width), rows = [];
-    let cur = [], tw = 0;
-    ws.forEach((w, i) => { if (cur.length && tw + w + 7 > R - L) { rows.push(cur); cur = []; tw = 0; } tw += w + (cur.length ? 5 : 0); cur.push(i); });
-    if (cur.length) rows.push(cur);
-    rows.forEach(r => { const sum = r.reduce((a, i) => a + ws[i], 0);
-      const gap = 7;
-      let x = L; const cy = y + 3.5;
-      r.forEach(i => { ctx.fillStyle = items[i][1]; ctx.beginPath();
-        ctx.roundRect ? ctx.roundRect(x, cy - 1.8, 3.6, 3.6, .7) : ctx.rect(x, cy - 1.8, 3.6, 3.6); ctx.fill();
-        text(x + 5, cy + 1.2, lab(items[i]), 7, "#222", 700);
-        x += ws[i] + gap; });
-      y += 6.5; });
-    y += 2;
-  }
   const GY = y + 3, memoOn = st.memoOn && st.memo > 0, memoH = memoOn ? st.memo * 7 + 6 : 0;
   const GB = H - 10 - memoH - (memoH ? 4 : 0), rowH = (GB - GY) / st.rows, LAB = st.labelCol ? 10 : 0, RB = rowBarsOf();
   const secOf = k => { for (let i = S.sections.length - 1; i >= 0; i--) { const q = S.sections[i];
@@ -389,13 +397,13 @@ function draw(ctx, s, selBar) {
     if (LAB && st.labelGray) { ctx.fillStyle = "#f2f2f2"; ctx.fillRect(L, y0, LAB, rowH); }
     ctx.globalAlpha = +st.fillAlpha;
     for (let b = 0; b < nb; b++) { const q = secOf(k0 + b + 1);
-      if (q) { ctx.fillStyle = st.legend[q.idx][1]; ctx.fillRect(L + LAB + b * BW, y0, BW, rowH); } }
+      if (q) { ctx.fillStyle = secColor(q); ctx.fillRect(L + LAB + b * BW, y0, BW, rowH); } }
     const q0 = secOf(k0 + 1);
-    if (LAB && q0) { ctx.fillStyle = st.legend[q0.idx][1]; ctx.fillRect(L, y0, LAB, rowH); }
+    if (LAB && q0) { ctx.fillStyle = secColor(q0); ctx.fillRect(L, y0, LAB, rowH); }
     ctx.globalAlpha = 1;
     if (LAB && st.secNames) {
       const qs = S.sections.find(q => q.from >= k0 + 1 && q.from <= k0 + nb && st.legend[q.idx]);
-      if (qs) { const lg = st.legend[qs.idx], sb = subsOf(lg), t = sb[qs.sub || 0] || sb[0] || lg[0]; let sz = 7.5; font(sz, 700);
+      if (qs) { const t = secLabel(qs); let sz = 7.5; font(sz, 700);
         while (ctx.measureText(t).width > LAB - 1.4 && sz > 3.2) { sz -= .25; font(sz, 700); }
         text(L + .7, y0 + Math.min(4.2, rowH * .5), t, sz, "#222", 700); }
     }
@@ -675,6 +683,7 @@ function renderInfo() {
 const isForm = f => /폼|form/i.test(f);
 function formKeys() { const out = [];
   st.legend.forEach(l => { const sb = subsOf(l); (sb.length ? sb : [l[0]]).forEach(k => { if (k && !out.includes(k)) out.push(k); }); });
+  S.sections.forEach(q => { if (q.label && !out.includes(q.label)) out.push(q.label); });
   return out; }
 $("info").addEventListener("focusin", e => { if ("form" in e.target.dataset) { const p = $("fpad"); if (p) p.hidden = false; } });
 $("info").addEventListener("pointerdown", e => { if (e.target.closest(".fpad")) e.preventDefault(); });
@@ -702,7 +711,12 @@ function secOptions() { const out = [];
     else out.push([`${j}:0`, `${l[0] || "(이름 없음)"}${subs[0] ? ` (${subs[0]})` : ""}`]); });
   return out; }
 function renderSecs() {
-  $("secList").innerHTML = S.sections.map((q, i) => `<div class="si"><select data-i="${i}" aria-label="섹션">${secOptions().map(([v, l]) => `<option value="${v}"${v === q.idx + ":" + (q.sub || 0) ? " selected" : ""}>${esc(l)}</option>`).join("")}</select><input type="number" inputmode="numeric" min="1" value="${q.from}" data-i="${i}" data-f="from" aria-label="시작 마디"><span>~</span><input type="number" inputmode="numeric" min="1" value="${q.to}" data-i="${i}" data-f="to" aria-label="끝 마디"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("") || '<p class="hint">아직 등록한 구간이 없어요.</p>';
+  $("secList").innerHTML = S.sections.map((q, i) => { const col = secColor(q), lg = st.legend[q.idx] || [];
+    return `<div class="si"><select data-i="${i}" aria-label="섹션 종류">${secOptions().map(([v, l]) => `<option value="${v}"${v === q.idx + ":" + (q.sub || 0) ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>` +
+    `<input type="text" data-i="${i}" data-f="label" value="${esc(q.label || "")}" placeholder="${esc(secLabel(Object.assign({}, q, {label: ""})))}" aria-label="악보에 쓸 이름">` +
+    `<button type="button" class="sw" data-i="${i}" data-pal style="background:${col}" aria-label="색 바꾸기"></button>` +
+    `<div class="r2"><span>마디</span><input type="number" inputmode="numeric" min="1" value="${q.from}" data-i="${i}" data-f="from" aria-label="시작 마디"><span>~</span><input type="number" inputmode="numeric" min="1" value="${q.to}" data-i="${i}" data-f="to" aria-label="끝 마디"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>` +
+    `<div class="pal" id="pal${i}" hidden>${st.legend.map(l => `<button type="button" data-i="${i}" data-col="${l[1]}" class="${l[1].toLowerCase() === col.toLowerCase() ? "on" : ""}" style="background:${l[1]}" aria-label="${esc(l[0])} 색"></button>`).join("")}<input type="color" data-i="${i}" data-f="color" value="${col}" aria-label="직접 고르기"><button type="button" class="reset" data-i="${i}" data-col="">기본색</button></div></div>`; }).join("") || '<p class="hint">아직 등록한 구간이 없어요.</p>';
 }
 function renderRows() {
   $("rowList").innerHTML = S.rowBars.map((o, i) => `<div class="ri"><span>줄</span><input type="number" inputmode="numeric" min="1" value="${o.row}" data-i="${i}" data-f="row" aria-label="줄 번호"><span>마디 수</span><input type="number" inputmode="numeric" min="1" max="8" value="${o.bars}" data-i="${i}" data-f="bars" aria-label="마디 수"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("");
@@ -742,9 +756,17 @@ leg.addEventListener("click", e => { const b = e.target.closest(".x"); if (!b) r
 $("addLeg").onclick = () => { snap(); st.legend.push(["새 섹션", "#A0D468", ""]); renderLegend(); renderSecs(); update(); };
 const onNum = arr => e => { const t = e.target, i = +t.dataset.i, f = t.dataset.f; if (isNaN(i) || !f) return;
   const v = parseInt(t.value, 10); if (isNaN(v)) return; snap(f + i); arr()[i][f] = v; update(); };
-$("secList").addEventListener("input", onNum(() => S.sections));
-$("secList").addEventListener("change", e => { if (e.target.tagName === "SELECT") { snap(); const [j, k] = e.target.value.split(":").map(Number); const q = S.sections[+e.target.dataset.i]; q.idx = j; q.sub = k; update(); } });
-$("secList").addEventListener("click", e => { const b = e.target.closest(".x"); if (!b) return; snap(); S.sections.splice(+b.dataset.i, 1); renderSecs(); update(); });
+$("secList").addEventListener("input", e => { const t = e.target, i = +t.dataset.i, f = t.dataset.f; if (isNaN(i) || !f) return; const q = S.sections[i];
+  if (f === "label") { snap("sl" + i); const v = t.value.trim(); if (v) q.label = v; else delete q.label; }
+  else if (f === "color") { snap("sc" + i); q.color = t.value; t.closest(".si").querySelector(".sw").style.background = t.value; }
+  else { const v = parseInt(t.value, 10); if (isNaN(v)) return; snap(f + i); q[f] = v; }
+  update(); });
+$("secList").addEventListener("change", e => { if (e.target.tagName === "SELECT") { snap(); const [j, k] = e.target.value.split(":").map(Number); const q = S.sections[+e.target.dataset.i]; q.idx = j; q.sub = k; delete q.label; delete q.color; renderSecs(); update(); } });
+$("secList").addEventListener("click", e => {
+  const sw = e.target.closest("[data-pal]"); if (sw) { const p = $("pal" + sw.dataset.i); p.hidden = !p.hidden; return; }
+  const pc = e.target.closest("[data-col]"); if (pc) { const i = +pc.dataset.i, q = S.sections[i]; snap();
+    if (pc.dataset.col) q.color = pc.dataset.col; else delete q.color; renderSecs(); update(); return; }
+  const b = e.target.closest(".x"); if (!b) return; snap(); S.sections.splice(+b.dataset.i, 1); renderSecs(); update(); });
 $("rowList").addEventListener("input", onNum(() => S.rowBars));
 $("rowList").addEventListener("click", e => { const b = e.target.closest(".x"); if (!b) return; snap(); S.rowBars.splice(+b.dataset.i, 1); renderRows(); update(); });
 $("addSec").onclick = () => { snap(); const last = S.sections[S.sections.length - 1], from = last ? last.to + 1 : 1;
