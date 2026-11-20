@@ -68,6 +68,7 @@ h2{font-size:15px;margin:0 0 8px;font-weight:700}
 .tog{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer;font-size:15px}
 .tog input{width:22px;height:22px;accent-color:var(--acc);flex:none}
 .toggles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px}
+textarea.ttl{width:100%;min-height:42px;font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);resize:vertical;field-sizing:content;max-height:96px}
 input[type=text],input[type=number],select{width:100%;height:42px;font:inherit;font-size:16px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink)}
 .info{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .info label{font-size:13px;color:var(--mute);display:grid;gap:2px}
@@ -380,8 +381,20 @@ function draw(ctx, s, selBar) {
     legB = 9.5 + 5 + 2.5;
   }
   if (st.title) { const cx = (L + R) / 2, maxW = legX < R ? Math.max(30, 2 * (legX - 4 - cx)) : R - L;
-    if (S.title) { let pt = 18; font(pt, 700); while (ctx.measureText(S.title).width > maxW && pt > 8) { pt -= .5; font(pt, 700); }
-      ctx.textAlign = "center"; text(cx, y + 8, S.title, pt, INK, 700); ctx.textAlign = "start"; }
+    if (S.title.trim()) {
+      const mw = (ls, p) => { font(p, 700); return Math.max(...ls.map(t => ctx.measureText(t).width)); };
+      let ls = S.title.split("\n").map(t => t.trim()).filter(Boolean).slice(0, 2), pt = 18;
+      if (ls.length === 1) { while (mw(ls, pt) > maxW && pt > 13) pt -= .5;
+        if (mw(ls, pt) > maxW) { const t = ls[0], mid = t.length / 2; let cut = -1;
+          for (let i = 0; i < t.length; i++) if (t[i] === " " && (cut < 0 || Math.abs(i - mid) < Math.abs(cut - mid))) cut = i;
+          if (cut < 0) cut = Math.ceil(mid); ls = [t.slice(0, cut).trim(), t.slice(cut).trim()]; pt = 18; } }
+      if (ls.length === 2) pt = 16;
+      while (mw(ls, pt) > maxW && pt > 8) pt -= .5;
+      const lh = pt * PT * 1.18;
+      ctx.textAlign = "center";
+      ls.forEach((t, i) => text(cx, y + 8 - (ls.length - 1) * lh * .55 + i * lh, t, pt, INK, 700));
+      ctx.textAlign = "start";
+      if (ls.length === 2) y += lh * .55; }
     else line(cx - Math.min(40, maxW / 2), y + 9, cx + Math.min(40, maxW / 2), y + 9, MID, .5);
     y += 14; }
   else if (legB) y = legB;
@@ -557,7 +570,7 @@ function render() {
   cv.width = Math.round(W * s); cv.height = Math.round(H * s);
   cells = draw(cv.getContext("2d"), s, sel);
   $("count").textContent = `${total()}마디 · ${normMeter(S.meter) || "4/4"} · A4 ${st.orient === "p" ? "세로" : "가로"} · 마디를 눌러 코드 입력`;
-  $("appTitle").textContent = S.title || "제목 없는 곡";
+  $("appTitle").textContent = S.title.replace(/\s*\n\s*/g, " ") || "제목 없는 곡";
 }
 cv.addEventListener("click", e => {
   const r = cv.getBoundingClientRect(), [W, H] = dims();
@@ -685,7 +698,7 @@ $("addMeter").onclick = () => { snap(); const k = sel || 1; S.meters.push({m: "3
 /* ---------- panels ---------- */
 function renderInfo() {
   const fields = st.fields.split(",").map(t => t.trim()).filter(Boolean);
-  $("info").innerHTML = `<label class="wide">곡명<input type="text" data-f="__title" value="${esc(S.title)}"></label>` +
+  $("info").innerHTML = `<label class="wide">곡명 <small style="font-size:12px">(줄을 바꾸면 두 줄 제목, 너무 길면 자동으로 두 줄)</small><textarea data-f="__title" rows="1" class="ttl">${esc(S.title)}</textarea></label>` +
     fields.map(f => isTempo(f)
       ? `<label class="wide">${esc(f)}<span class="tempo"><select data-tn aria-label="기준 음표">${NOTES.map(([v, l]) => `<option value="${v}"${(S.tempoNote || "q") === v ? " selected" : ""}>${l}</option>`).join("")}</select><input type="text" inputmode="numeric" data-f="${esc(f)}" value="${esc(S.info[f] || "")}" placeholder="예: 120"></span></label>`
       : isKey(f)
@@ -752,7 +765,7 @@ function renderRows() {
 function renderSongs() {
   const list = [...db.songs].sort((a, b) => b.updated - a.updated);
   $("songList").innerHTML = list.map(s => { const n = Object.keys(s.chords).length, d = new Date(s.updated);
-    return `<button class="song${s.id === S.id ? " on" : ""}" data-id="${s.id}"><span><b>${esc(s.title || "제목 없는 곡")}</b><small>코드 ${n}마디 · ${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}</small></span></button>`; }).join("");
+    return `<button class="song${s.id === S.id ? " on" : ""}" data-id="${s.id}"><span><b>${esc(s.title.replace(/\s*\n\s*/g, " ") || "제목 없는 곡")}</b><small>코드 ${n}마디 · ${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}</small></span></button>`; }).join("");
 }
 function syncUI() {
   document.querySelectorAll(".step").forEach(el => el.querySelector("output").textContent = st[el.dataset.k]);
@@ -850,7 +863,7 @@ async function buildPdf() {
   put(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${x}\n%%EOF`);
   return new Blob(parts, {type: "application/pdf"});
 }
-const fname = ext => `${(S.title || "코드표").replace(/[\\/:*?"<>|]/g, "_")}.${ext}`;
+const fname = ext => `${(S.title.replace(/\s*\n\s*/g, " ") || "코드표").replace(/[\\/:*?"<>|]/g, "_")}.${ext}`;
 let dl = null;
 async function saveFile(name, data) {
   if (!dl && window.claude && window.claude.use) { try { dl = await window.claude.use("downloads"); } catch (e) {} }
