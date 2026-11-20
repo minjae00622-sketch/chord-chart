@@ -72,7 +72,13 @@ input[type=text],input[type=number],select{width:100%;height:42px;font:inherit;f
 .info{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .info label{font-size:13px;color:var(--mute);display:grid;gap:2px}
 .info .wide{grid-column:1/-1}
-.tempo{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:6px}
+.tempo{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:6px}
+.fpad{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:8px;border:1px solid var(--line);border-radius:12px;background:var(--soft)}
+.fpad[hidden]{display:none}
+.fpad button{height:42px;border:1px solid var(--line);border-radius:9px;background:var(--panel);cursor:pointer;font-size:15px;font-weight:600}
+.fpad button:active{background:var(--acc);color:var(--accInk)}
+.fpad .fx{background:transparent;font-weight:500;font-size:14px}
+.fpad .ok{background:var(--acc);color:var(--accInk);border-color:var(--acc)}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip{height:40px;padding:0 14px;border:1px solid var(--line);border-radius:20px;background:transparent;font-size:14px;cursor:pointer}
 .chip.warn{color:#c2362b;border-color:currentColor}
@@ -101,7 +107,7 @@ input[type=text],input[type=number],select{width:100%;height:42px;font:inherit;f
 .toast.show{opacity:1}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 @media(max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}.sheet{position:static;max-width:560px;margin:0 auto;width:100%}}
-@media(max-width:900px){.side .ed{position:fixed;top:auto;left:0;right:0;bottom:0;margin:0;z-index:6;border-radius:16px 16px 0 0;box-shadow:0 -8px 28px rgba(10,20,40,.22);max-height:62vh;overflow:auto;padding:10px max(3vw,12px) max(10px,env(safe-area-inset-bottom))}.ed .pad,.ed .edf,.ed .cin,.ed .edh,.ed .tog{max-width:640px;margin-left:auto;margin-right:auto}body.editing{padding-bottom:62vh}}
+@media(max-width:900px){.side .ed{position:fixed;top:auto;left:0;right:0;bottom:0;margin:0;z-index:6;border-radius:16px 16px 0 0;box-shadow:0 -8px 28px rgba(10,20,40,.22);max-height:62vh;overflow:auto;padding:10px max(3vw,12px) max(10px,env(safe-area-inset-bottom))}.ed .pad,.ed .edf,.ed .cin,.ed .edh,.ed .tog,.ed .marks,.ed .mrow{max-width:640px;margin-left:auto;margin-right:auto}body.editing{padding-bottom:62vh}}
 @media(max-width:420px){.toggles{grid-template-columns:minmax(0,1fr)}.pad{grid-template-columns:repeat(6,minmax(0,1fr))}.top .hide-s{display:none}}
 @media(prefers-reduced-motion:reduce){.toast{transition:none}}
 </style>
@@ -255,9 +261,10 @@ const LEGEND = [["인트로·아웃트로","#FFB86B","Int/Out"],["벌스","#8EC5
   ["인터루드","#7EDCC4","Inter"],["브릿지","#C39BFF","Br"],["예비 1","#FF9ECF",""],["예비 2","#BFC5CC",""]];
 const ABBR = {"인트로·아웃트로":"Int/Out","인트로":"Int","아웃트로":"Out","벌스":"V","프리코러스":"Pre","코러스":"Ch","인터루드":"Inter","브릿지":"Br"};
 const capAbbr = t => String(t || "").split("/").map(x => x.trim()).map(x => x ? x[0].toUpperCase() + x.slice(1) : x).join("/");
-const OLD_FIELDS = "키, 템포, 스타일, 폼", NEW_FIELDS = "템포, 키, 카포, 폼";
+const OLD_FIELDS = ["키, 템포, 스타일, 폼", "템포, 키, 카포, 폼"], NEW_FIELDS = "템포, 키, 카포, 송폼";
 const fixLegend = lay => { lay.legend = (lay.legend || []).map(l => [l[0], l[1], capAbbr(l[2] !== undefined ? l[2] : (ABBR[l[0]] || ""))]);
-  if (lay.fields === OLD_FIELDS) lay.fields = NEW_FIELDS; };
+  if (OLD_FIELDS.includes(lay.fields)) { lay.fields = NEW_FIELDS; return true; } };
+const fixSong = s => { if (fixLegend(s.layout) && s.info["폼"] && !s.info["송폼"]) { s.info["송폼"] = s.info["폼"]; delete s.info["폼"]; } };
 const subsOf = l => capAbbr(l[2]).split("/").map(t => t.trim()).filter(Boolean);
 const LAYOUT = {rows:12,bars:4,group:0,orient:"p",labelCol:true,labelGray:false,half:false,numbers:false,finalBar:true,
   title:true,fields:NEW_FIELDS,legendOn:true,memoOn:true,memo:3,memoCols:"2",fillAlpha:"0.45",secNames:true,
@@ -269,7 +276,7 @@ const newSong = lay => ({id: uid(), title: "", meter: "4/4", meters: [], marks: 
 let db = null;
 try { db = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
 if (!db || !Array.isArray(db.songs) || !db.songs.length) { const s = newSong(); db = {songs: [s], cur: s.id, kbd: false}; }
-db.songs.forEach(s => { s.layout = Object.assign(clone(LAYOUT), s.layout); s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; s.meter = s.meter || "4/4"; s.meters = s.meters || []; s.marks = s.marks || {}; fixLegend(s.layout); });
+db.songs.forEach(s => { s.layout = Object.assign(clone(LAYOUT), s.layout); s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; s.meter = s.meter || "4/4"; s.meters = s.meters || []; s.marks = s.marks || {}; fixSong(s); });
 let S = db.songs.find(s => s.id === db.cur) || db.songs[0];
 let st = S.layout;
 let saveT = 0;
@@ -559,7 +566,7 @@ $("clearBar").onclick = () => { cin.value = ""; setBar(""); cin.focus(); };
 $("kbd").onchange = e => { db.kbd = e.target.checked; persist(); cin.inputMode = db.kbd ? "text" : "none"; cin.blur(); cin.focus(); };
 const PAD = [["C","n"],["D","n"],["E","n"],["F","n"],["G","n"],["A","n"],["B","n"],["b","♭"],
   ["#","♯"],["m"],["7"],["maj7","△7"],["m7"],["mM7","m△7"],["m7b5","ø"],["dim"],["aug"],
-  ["sus4"],["6"],["9"],["11"],["13"],["alt"],["/"],["^","x² 텐션","t"],
+  ["sus4"],["6"],["9"],["11"],["13"],["alt"],["/"],["^","x²","t"],
   [".","·"],["-","-"],["%"],[",",","],["⌫","⌫"],[" ","띄어쓰기","w2"]];
 $("pad").innerHTML = PAD.map(([v, l, c]) => `<button type="button" data-v="${esc(v)}" class="${l === "n" ? "n" : c || ""}">${esc(l && l !== "n" ? l : v)}</button>`).join("");
 $("pad").addEventListener("pointerdown", e => e.preventDefault());
@@ -649,9 +656,29 @@ function renderInfo() {
   const fields = st.fields.split(",").map(t => t.trim()).filter(Boolean);
   $("info").innerHTML = `<label class="wide">곡명<input type="text" data-f="__title" value="${esc(S.title)}"></label>` +
     fields.map(f => isTempo(f)
-      ? `<label>${esc(f)}<span class="tempo"><select data-tn aria-label="기준 음표">${NOTES.map(([v, l]) => `<option value="${v}"${(S.tempoNote || "q") === v ? " selected" : ""}>${l}</option>`).join("")}</select><input type="text" inputmode="numeric" data-f="${esc(f)}" value="${esc(S.info[f] || "")}" placeholder="예: 120"></span></label>`
-      : `<label${/폼|form/i.test(f) ? ' class="wide"' : ""}>${esc(f)}<input type="text" data-f="${esc(f)}" value="${esc(S.info[f] || "")}"></label>`).join("");
+      ? `<label class="wide">${esc(f)}<span class="tempo"><select data-tn aria-label="기준 음표">${NOTES.map(([v, l]) => `<option value="${v}"${(S.tempoNote || "q") === v ? " selected" : ""}>${l}</option>`).join("")}</select><input type="text" inputmode="numeric" data-f="${esc(f)}" value="${esc(S.info[f] || "")}" placeholder="예: 120"></span></label>`
+      : isForm(f)
+      ? `<label class="wide">${esc(f)}<input type="text" data-f="${esc(f)}" data-form value="${esc(S.info[f] || "")}" inputmode="${db.fkbd ? "text" : "none"}" placeholder="눌러서 송폼 버튼으로 입력"></label><div class="fpad" id="fpad" hidden>${formKeys().map(k => `<button type="button" data-fk="${esc(k)}">${esc(k)}</button>`).join("")}<button type="button" class="fx" data-fk="__back">⌫ 하나</button><button type="button" class="fx" data-fk="__clear">모두 지우기</button><button type="button" class="fx" data-fk="__kbd">${db.fkbd ? "버튼만" : "자판 쓰기"}</button><button type="button" class="ok" data-fk="__ok">완료</button></div>`
+      : `<label>${esc(f)}<input type="text" data-f="${esc(f)}" value="${esc(S.info[f] || "")}"></label>`).join("");
 }
+const isForm = f => /폼|form/i.test(f);
+function formKeys() { const out = [];
+  st.legend.forEach(l => { const sb = subsOf(l); (sb.length ? sb : [l[0]]).forEach(k => { if (k && !out.includes(k)) out.push(k); }); });
+  return out; }
+$("info").addEventListener("focusin", e => { if ("form" in e.target.dataset) { const p = $("fpad"); if (p) p.hidden = false; } });
+$("info").addEventListener("pointerdown", e => { if (e.target.closest(".fpad")) e.preventDefault(); });
+$("info").addEventListener("click", e => {
+  const b = e.target.closest("[data-fk]"); if (!b) return;
+  const inp = $("info").querySelector("[data-form]"), f = inp.dataset.f, k = b.dataset.fk;
+  if (k === "__ok") { $("fpad").hidden = true; inp.blur(); return; }
+  if (k === "__kbd") { db.fkbd = !db.fkbd; persist(); inp.inputMode = db.fkbd ? "text" : "none"; b.textContent = db.fkbd ? "버튼만" : "자판 쓰기"; inp.blur(); inp.focus(); return; }
+  snap("info" + f);
+  let v = (S.info[f] || "").trim();
+  if (k === "__back") v = v.includes("-") ? v.slice(0, v.lastIndexOf("-")) : "";
+  else if (k === "__clear") v = "";
+  else v = v ? v.replace(/-+$/, "") + "-" + k : k;
+  S.info[f] = v; inp.value = v; inp.focus({preventScroll: true}); persist(); render();
+});
 $("info").addEventListener("change", e => { if (!("tn" in e.target.dataset)) return; snap(); S.tempoNote = e.target.value; persist(); render(); });
 $("info").addEventListener("input", e => { const f = e.target.dataset.f; if (!f) return; snap("info" + f);
   if (f === "__title") S.title = e.target.value; else S.info[f] = e.target.value; persist(); render(); renderSongs(); });
@@ -773,7 +800,7 @@ $("exportJson").onclick = async () => { try { await saveFile(`코드표_백업_$
 $("importJson").onchange = async e => { const f = e.target.files[0]; if (!f) return;
   try { const o = JSON.parse(await f.text()); if (!o || !Array.isArray(o.songs)) throw 0;
     let n = 0; o.songs.forEach(s => { if (!s || !s.layout) return; s.layout = Object.assign(clone(LAYOUT), s.layout);
-      s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; s.meter = s.meter || "4/4"; s.meters = s.meters || []; s.marks = s.marks || {}; fixLegend(s.layout);
+      s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; s.meter = s.meter || "4/4"; s.meters = s.meters || []; s.marks = s.marks || {}; fixSong(s);
       const i = db.songs.findIndex(x => x.id === s.id); if (i >= 0) db.songs[i] = s; else db.songs.push(s); n++; });
     openSong(db.songs.find(x => x.id === S.id) || db.songs[0]); toast(`${n}곡을 불러왔어요`);
   } catch (err) { toast("백업 파일을 읽지 못했어요"); }
