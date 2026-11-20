@@ -75,7 +75,7 @@ input[type=text],input[type=number],select{width:100%;height:42px;font:inherit;f
 .chip{height:40px;padding:0 14px;border:1px solid var(--line);border-radius:20px;background:transparent;font-size:14px;cursor:pointer}
 .chip.warn{color:#c2362b;border-color:currentColor}
 .list{display:grid;gap:8px}
-.li{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:8px;align-items:center}
+.li{display:grid;grid-template-columns:44px minmax(0,1fr) 78px 44px;gap:8px;align-items:center}
 .li input[type=color]{width:44px;height:40px;border:1px solid var(--line);border-radius:10px;padding:3px;background:transparent;cursor:pointer}
 .si{display:grid;grid-template-columns:minmax(0,1fr) 60px 10px 60px 44px;gap:6px;align-items:center}
 .ri{display:grid;grid-template-columns:auto 60px auto 60px 44px;gap:8px;align-items:center;font-size:14px}
@@ -178,6 +178,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
         <div class="sec">
           <h2>색상 범례</h2>
           <label class="tog"><input type="checkbox" data-k="legendOn">범례 보이기</label>
+          <p class="hint">오른쪽 칸은 악보 왼쪽 섹션 칸에 쓸 약어예요. 한 색을 두 섹션이 같이 쓰면 int/out처럼 /로 나눠 적으세요.</p>
           <div class="list" id="leg"></div>
           <button class="chip add" id="addLeg">+ 항목 추가</button>
         </div>
@@ -240,8 +241,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <script>
 {
 /* ---------- data ---------- */
-const LEGEND = [["인트로·아웃트로","#FFB86B"],["벌스","#8EC5FF"],["프리코러스","#FFE066"],["코러스","#FF8A80"],
-  ["인터루드","#7EDCC4"],["브릿지","#C39BFF"],["예비 1","#FF9ECF"],["예비 2","#BFC5CC"]];
+const LEGEND = [["인트로·아웃트로","#FFB86B","int/out"],["벌스","#8EC5FF","V"],["프리코러스","#FFE066","pre"],["코러스","#FF8A80","ch"],
+  ["인터루드","#7EDCC4","inter"],["브릿지","#C39BFF","br"],["예비 1","#FF9ECF",""],["예비 2","#BFC5CC",""]];
+const ABBR = {"인트로·아웃트로":"int/out","인트로":"int","아웃트로":"out","벌스":"V","프리코러스":"pre","코러스":"ch","인터루드":"inter","브릿지":"br"};
+const fixLegend = lay => { lay.legend = (lay.legend || []).map(l => [l[0], l[1], l[2] !== undefined ? l[2] : (ABBR[l[0]] || "")]); };
+const subsOf = l => (l[2] || "").split("/").map(t => t.trim()).filter(Boolean);
 const LAYOUT = {rows:12,bars:4,group:0,orient:"p",labelCol:true,labelGray:false,half:false,numbers:false,finalBar:true,
   title:true,fields:"키, 템포, 스타일, 폼",legendOn:true,memoOn:true,memo:3,memoCols:"2",fillAlpha:"0.45",secNames:true,
   printChords:true,flats:"1",showMeter:true,legend:LEGEND};
@@ -252,7 +256,7 @@ const newSong = lay => ({id: uid(), title: "", meter: "4/4", meters: [], info: {
 let db = null;
 try { db = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
 if (!db || !Array.isArray(db.songs) || !db.songs.length) { const s = newSong(); db = {songs: [s], cur: s.id, kbd: false}; }
-db.songs.forEach(s => { s.layout = Object.assign(clone(LAYOUT), s.layout); s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; s.meter = s.meter || "4/4"; s.meters = s.meters || []; });
+db.songs.forEach(s => { s.layout = Object.assign(clone(LAYOUT), s.layout); s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; s.meter = s.meter || "4/4"; s.meters = s.meters || []; fixLegend(s.layout); });
 let S = db.songs.find(s => s.id === db.cur) || db.songs[0];
 let st = S.layout;
 let saveT = 0;
@@ -356,9 +360,9 @@ function draw(ctx, s, selBar) {
     ctx.globalAlpha = 1;
     if (LAB && st.secNames) {
       const qs = S.sections.find(q => q.from >= k0 + 1 && q.from <= k0 + nb && st.legend[q.idx]);
-      if (qs) { const t = st.legend[qs.idx][0]; let sz = 6.5; font(sz, 500);
-        while (ctx.measureText(t).width > LAB - 1.4 && sz > 3.2) { sz -= .25; font(sz, 500); }
-        text(L + .7, y0 + Math.min(4, rowH * .5), t, sz, "#333", 500); }
+      if (qs) { const lg = st.legend[qs.idx], sb = subsOf(lg), t = sb[qs.sub || 0] || sb[0] || lg[0]; let sz = 7.5; font(sz, 700);
+        while (ctx.measureText(t).width > LAB - 1.4 && sz > 3.2) { sz -= .25; font(sz, 700); }
+        text(L + .7, y0 + Math.min(4.2, rowH * .5), t, sz, "#222", 700); }
     }
     for (let b = 0; b < nb; b++) {
       const bx = L + LAB + b * BW, k = k0 + b + 1;
@@ -539,10 +543,15 @@ function renderInfo() {
 $("info").addEventListener("input", e => { const f = e.target.dataset.f; if (!f) return; snap("info" + f);
   if (f === "__title") S.title = e.target.value; else S.info[f] = e.target.value; persist(); render(); renderSongs(); });
 function renderLegend() {
-  $("leg").innerHTML = st.legend.map(([t, c], i) => `<div class="li"><input type="color" value="${c}" data-i="${i}" aria-label="색"><input type="text" value="${esc(t)}" data-i="${i}" aria-label="이름"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("");
+  $("leg").innerHTML = st.legend.map(([t, c, a], i) => `<div class="li"><input type="color" value="${c}" data-i="${i}" data-f="c" aria-label="색"><input type="text" value="${esc(t)}" data-i="${i}" data-f="n" aria-label="이름"><input type="text" value="${esc(a || "")}" data-i="${i}" data-f="a" placeholder="약어" aria-label="악보에 쓸 약어"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("");
 }
+function secOptions() { const out = [];
+  st.legend.forEach((l, j) => { const subs = subsOf(l), names = l[0].split("·").map(t => t.trim());
+    if (subs.length > 1) subs.forEach((a, k) => out.push([`${j}:${k}`, `${names[k] || l[0]} (${a})`]));
+    else out.push([`${j}:0`, `${l[0] || "(이름 없음)"}${subs[0] ? ` (${subs[0]})` : ""}`]); });
+  return out; }
 function renderSecs() {
-  $("secList").innerHTML = S.sections.map((q, i) => `<div class="si"><select data-i="${i}" aria-label="섹션">${st.legend.map(([t], j) => `<option value="${j}"${j === q.idx ? " selected" : ""}>${esc(t || "(이름 없음)")}</option>`).join("")}</select><input type="number" inputmode="numeric" min="1" value="${q.from}" data-i="${i}" data-f="from" aria-label="시작 마디"><span>~</span><input type="number" inputmode="numeric" min="1" value="${q.to}" data-i="${i}" data-f="to" aria-label="끝 마디"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("") || '<p class="hint">아직 등록한 구간이 없어요.</p>';
+  $("secList").innerHTML = S.sections.map((q, i) => `<div class="si"><select data-i="${i}" aria-label="섹션">${secOptions().map(([v, l]) => `<option value="${v}"${v === q.idx + ":" + (q.sub || 0) ? " selected" : ""}>${esc(l)}</option>`).join("")}</select><input type="number" inputmode="numeric" min="1" value="${q.from}" data-i="${i}" data-f="from" aria-label="시작 마디"><span>~</span><input type="number" inputmode="numeric" min="1" value="${q.to}" data-i="${i}" data-f="to" aria-label="끝 마디"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("") || '<p class="hint">아직 등록한 구간이 없어요.</p>';
 }
 function renderRows() {
   $("rowList").innerHTML = S.rowBars.map((o, i) => `<div class="ri"><span>줄</span><input type="number" inputmode="numeric" min="1" value="${o.row}" data-i="${i}" data-f="row" aria-label="줄 번호"><span>마디 수</span><input type="number" inputmode="numeric" min="1" max="8" value="${o.bars}" data-i="${i}" data-f="bars" aria-label="마디 수"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("");
@@ -574,15 +583,16 @@ $("fields").oninput = e => { snap("fields"); st.fields = e.target.value; renderI
 document.querySelectorAll("[data-rows]").forEach(b => b.onclick = () => { snap(); st.rows = +b.dataset.rows; st.bars = 4; syncUI(); update(); });
 const leg = $("leg");
 leg.addEventListener("input", e => { const i = +e.target.dataset.i; if (isNaN(i)) return; snap("leg" + i + e.target.type);
-  if (e.target.type === "color") st.legend[i][1] = e.target.value; else { st.legend[i][0] = e.target.value; renderSecs(); } update(); });
+  const f = e.target.dataset.f;
+  if (f === "c") st.legend[i][1] = e.target.value; else { st.legend[i][f === "a" ? 2 : 0] = e.target.value; renderSecs(); } update(); });
 leg.addEventListener("click", e => { const b = e.target.closest(".x"); if (!b) return; snap(); const d = +b.dataset.i;
   st.legend.splice(d, 1); S.sections = S.sections.filter(q => q.idx !== d).map(q => (q.idx > d ? (q.idx--, q) : q));
   renderLegend(); renderSecs(); update(); });
-$("addLeg").onclick = () => { snap(); st.legend.push(["새 섹션", "#A0D468"]); renderLegend(); renderSecs(); update(); };
+$("addLeg").onclick = () => { snap(); st.legend.push(["새 섹션", "#A0D468", ""]); renderLegend(); renderSecs(); update(); };
 const onNum = arr => e => { const t = e.target, i = +t.dataset.i, f = t.dataset.f; if (isNaN(i) || !f) return;
   const v = parseInt(t.value, 10); if (isNaN(v)) return; snap(f + i); arr()[i][f] = v; update(); };
 $("secList").addEventListener("input", onNum(() => S.sections));
-$("secList").addEventListener("change", e => { if (e.target.tagName === "SELECT") { snap(); S.sections[+e.target.dataset.i].idx = +e.target.value; update(); } });
+$("secList").addEventListener("change", e => { if (e.target.tagName === "SELECT") { snap(); const [j, k] = e.target.value.split(":").map(Number); const q = S.sections[+e.target.dataset.i]; q.idx = j; q.sub = k; update(); } });
 $("secList").addEventListener("click", e => { const b = e.target.closest(".x"); if (!b) return; snap(); S.sections.splice(+b.dataset.i, 1); renderSecs(); update(); });
 $("rowList").addEventListener("input", onNum(() => S.rowBars));
 $("rowList").addEventListener("click", e => { const b = e.target.closest(".x"); if (!b) return; snap(); S.rowBars.splice(+b.dataset.i, 1); renderRows(); update(); });
@@ -650,7 +660,7 @@ $("exportJson").onclick = async () => { try { await saveFile(`코드표_백업_$
 $("importJson").onchange = async e => { const f = e.target.files[0]; if (!f) return;
   try { const o = JSON.parse(await f.text()); if (!o || !Array.isArray(o.songs)) throw 0;
     let n = 0; o.songs.forEach(s => { if (!s || !s.layout) return; s.layout = Object.assign(clone(LAYOUT), s.layout);
-      s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; s.meter = s.meter || "4/4"; s.meters = s.meters || [];
+      s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; s.meter = s.meter || "4/4"; s.meters = s.meters || []; fixLegend(s.layout);
       const i = db.songs.findIndex(x => x.id === s.id); if (i >= 0) db.songs[i] = s; else db.songs.push(s); n++; });
     openSong(db.songs.find(x => x.id === S.id) || db.songs[0]); toast(`${n}곡을 불러왔어요`);
   } catch (err) { toast("백업 파일을 읽지 못했어요"); }
