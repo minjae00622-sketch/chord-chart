@@ -253,11 +253,16 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
           <div class="row"><span>메모 줄 수</span><div class="step" data-k="memo" data-min="1" data-max="12"><button aria-label="줄이기">−</button><output></output><button aria-label="늘리기">+</button></div></div>
           <div class="row"><span>메모 칸 나누기</span><div class="seg" data-k="memoCols"><button data-v="1">한 칸</button><button data-v="2">두 칸</button></div></div>
         </div>
+        <div class="sec">
+          <h2>기본값으로 되돌리기</h2>
+          <p class="hint">이 곡의 레이아웃, 정보 칸 이름, 범례 색·약어, 색 진하기 같은 설정을 처음 상태로 되돌려요. 입력한 코드, 곡 정보, 송폼 구간, 박자는 그대로 남아요. 실수로 눌렀으면 위쪽 되돌리기로 복구할 수 있어요.</p>
+          <button class="chip warn" id="resetLayout">이 곡 설정을 기본값으로</button>
+        </div>
       </section>
 
       <section class="pn" data-panel="songs" hidden>
         <div class="sec">
-          <div class="chips" style="margin-bottom:10px"><button class="chip" id="newSong">+ 새 곡</button><button class="chip" id="dupSong">복제</button><button class="chip warn" id="delSong">이 곡 삭제</button></div>
+          <div class="chips" style="margin-bottom:10px"><button class="chip" id="newSong">+ 새 곡</button><button class="chip" id="newSongDef">+ 새 곡 (기본 설정)</button><button class="chip" id="dupSong">복제</button><button class="chip warn" id="delSong">이 곡 삭제</button></div>
           <p class="hint">새 곡은 지금 곡의 레이아웃과 범례를 그대로 가져가요.</p>
           <div class="songs" id="songList"></div>
         </div>
@@ -832,6 +837,11 @@ $("tabs").addEventListener("click", e => { const b = e.target.closest("button");
 function openSong(s) { S = s; st = S.layout; db.cur = S.id; undoStack.length = 0; $("undo").disabled = true; snapTag = null; closeEd(); syncUI(); update(); }
 $("songList").addEventListener("click", e => { const b = e.target.closest(".song"); if (!b) return; const s = db.songs.find(x => x.id === b.dataset.id); if (s) { openSong(s); toast(`'${s.title || "제목 없는 곡"}' 열었어요`); } });
 $("newSong").onclick = () => { const lay = clone(st); const s = newSong(lay); db.songs.push(s); openSong(s); toast("새 곡을 만들었어요"); };
+$("newSongDef").onclick = () => { const s = newSong(); db.songs.push(s); openSong(s); toast("기본 설정으로 새 곡을 만들었어요"); };
+$("resetLayout").onclick = e => twoTap(e.currentTarget, "이 곡 설정을 기본값으로", () => { snap();
+  const keep = Object.assign({}, S.info), oldF = st.fields; S.layout = clone(LAYOUT); st = S.layout;
+  S.sections.forEach(q => { if (!q.cid && !st.legend[q.idx]) { q.idx = 0; q.sub = 0; } });
+  S.info = keep; syncUI(); update(); toast("설정을 기본값으로 되돌렸어요"); });
 $("dupSong").onclick = () => { const s = clone(S); s.id = uid(); s.title = (S.title || "제목 없는 곡") + " 복사본"; db.songs.push(s); openSong(s); toast("복제했어요"); };
 $("delSong").onclick = e => twoTap(e.currentTarget, "이 곡 삭제", () => {
   db.songs = db.songs.filter(s => s.id !== S.id);
