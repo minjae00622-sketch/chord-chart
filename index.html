@@ -57,6 +57,7 @@ canvas{display:block;width:100%;height:auto;border-radius:6px;cursor:pointer}
 .sec:last-child{border-bottom:0}
 h2{font-size:15px;margin:0 0 8px;font-weight:700}
 .hint{font-size:13px;color:var(--mute);margin:2px 0 8px}
+.help{font-size:13px;color:var(--mute);margin:0 0 10px}.help summary{cursor:pointer;min-height:32px;display:flex;align-items:center;color:var(--acc)}.help ul{margin:4px 0 0;padding-left:18px;line-height:1.7}
 .row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;min-height:44px}
 .row>span{font-size:15px}
 .step{display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;overflow:hidden}
@@ -176,7 +177,15 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
         </div>
         <div class="sec">
           <h2>코드 입력</h2>
-          <p class="hint">악보의 마디를 누르면 입력창이 열려요. 한 마디에 코드가 여러 개면 띄어 쓰세요 (예: Dm7 G7). 앞 마디와 같으면 % 또는 -. 같은 코드를 연달아 쓰면(C D Em Em) 그만큼 칸을 넓게 차지해요. 점(·)과 -는 C.D-Em처럼 직접 쓰면 그대로 찍혀요. 텐션은 x² 버튼(^) 뒤에 쓰면 위첨자로 올라가요 (예: C7^b9,13). 도돌이표와 1·2번 괄호도 입력창에서 마디마다 정해요. 같은 괄호를 연달아 붙이면 하나로 이어져요.</p>
+          <p class="hint">악보의 마디를 누르면 입력창이 열려요.</p>
+          <details class="help"><summary>입력 방법 보기</summary><ul>
+            <li>한 마디에 여러 코드: 띄어 쓰기 (Dm7 G7)</li>
+            <li>앞 마디와 같음: % 또는 -</li>
+            <li>같은 코드를 연달아 쓰면 그만큼 넓게 (C D Em Em)</li>
+            <li>점·대시는 직접: C.D-Em</li>
+            <li>텐션: x² 버튼 뒤에 (C7^b9,13), 베이스음: /F</li>
+            <li>maj7은 △7, mM7은 m△7로 찍혀요</li>
+            <li>도돌이표·1·2번 괄호·마디 박자는 입력창 위쪽에서</li></ul></details>
           <div class="chips"><button class="chip" id="startInput">1마디부터 입력</button><button class="chip warn" id="clearAll">코드 모두 지우기</button></div>
           <label class="tog"><input type="checkbox" data-k="printChords">코드를 악보에 표시</label>
         </div>
@@ -185,7 +194,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
           <div class="row"><span>곡 기본 박자</span><div class="chips" id="meterChips"></div></div>
           <div class="row"><span>직접 입력</span><input type="text" id="meterCustom" placeholder="예: 7/4" style="max-width:140px"></div>
           <h2 style="margin-top:10px">박자가 바뀌는 마디</h2>
-          <p class="hint">마디 하나 또는 구간의 박자를 바꿔요. 입력창에서 "이 마디 박자"로 바꿔도 여기에 추가돼요. 박자가 바뀌는 마디에는 악보에 박자표가 찍혀요.</p>
+          <p class="hint">마디 하나 또는 구간의 박자를 바꿔요. 입력창에서 "이 마디 박자"로 바꿔도 여기에 추가돼요. 레이아웃 탭에서 "박자표 표시"를 켜면 박자가 바뀌는 마디에 박자표가 찍혀요.</p>
           <div class="list" id="meterList"></div>
           <button class="chip add" id="addMeter">+ 박자 변경 추가</button>
         </div>
@@ -291,7 +300,8 @@ const swapVP = lay => { if (lay.vpSwap) return; lay.vpSwap = 1;
   if (v && p && v[1].toUpperCase() === "#8EC5FF" && p[1].toUpperCase() === "#FFE066") { v[1] = "#FFE066"; p[1] = "#8EC5FF"; } };
 const fixLegend = lay => { lay.legend = (lay.legend || []).map(l => SPARE[l[0]] && !l[2] ? SPARE[l[0]].slice() : [l[0], RECOLOR[String(l[1]).toUpperCase()] || l[1], capAbbr(l[2] !== undefined ? l[2] : (ABBR[l[0]] || ""))]);
   if (OLD_FIELDS.includes(lay.fields)) { lay.fields = NEW_FIELDS; return true; } };
-const fixSong = s => { if (fixLegend(s.layout) && s.info["폼"] && !s.info["송폼"]) { s.info["송폼"] = s.info["폼"]; delete s.info["폼"]; } };
+const fixCapo = s => { const v = s.info["카포"]; if (v !== undefined && /^\d+$/.test(String(v).trim())) { const n = +v; s.info["카포"] = n === 0 ? "0" : n <= 11 ? "+" + n : ""; } };
+const fixSong = s => { fixCapo(s); if (fixLegend(s.layout) && s.info["폼"] && !s.info["송폼"]) { s.info["송폼"] = s.info["폼"]; delete s.info["폼"]; } };
 const customOf = id => (db.customSecs || []).find(c => c.id === id);
 const secValid = q => q.cid ? !!customOf(q.cid) : !!st.legend[q.idx];
 const secColor = q => q.color || (q.cid ? (customOf(q.cid) || {}).color : (st.legend[q.idx] || [])[1]) || "#ddd";
@@ -312,7 +322,10 @@ db.customSecs = db.customSecs || [];
 let S = db.songs.find(s => s.id === db.cur) || db.songs[0];
 let st = S.layout;
 let saveT = 0;
-const persist = () => { S.updated = Date.now(); clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast("저장 공간이 부족해서 저장하지 못했어요"); } }, 250); };
+const writeNow = () => { clearTimeout(saveT); saveT = 0; try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast("저장 공간이 부족해서 저장하지 못했어요"); } };
+const persist = () => { S.updated = Date.now(); clearTimeout(saveT); saveT = setTimeout(writeNow, 250); };
+addEventListener("pagehide", () => { if (saveT) writeNow(); });
+document.addEventListener("visibilitychange", () => { if (document.hidden && saveT) writeNow(); });
 const $ = id => document.getElementById(id);
 const esc = t => String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let tt = 0;
@@ -575,7 +588,7 @@ function drawChords(ctx, list, x, y, w, h, font) {
 const cv = $("cv");
 let cells = [], sel = 0;
 function render() {
-  const [W, H] = dims(), dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const [W, H] = dims(), dpr = Math.min(window.devicePixelRatio || 1, 2);
   const s = (cv.parentElement.clientWidth || 400) * dpr / W;
   cv.width = Math.round(W * s); cv.height = Math.round(H * s);
   cells = draw(cv.getContext("2d"), s, sel);
@@ -697,7 +710,7 @@ function renderMeters() {
 }
 $("meterChips").addEventListener("click", e => { const b = e.target.closest("[data-m]"); if (!b) return; snap(); S.meter = b.dataset.m; persist(); renderMeters(); renderInfo(); if (sel) fillBarMeter(); render(); });
 $("meterCustom").addEventListener("input", e => { const m = normMeter(e.target.value); if (!m) return; snap("meterDef"); S.meter = m;
-  persist(); $("meterChips").querySelectorAll("[data-m]").forEach(b => { b.style.cssText = ""; }); if (sel) fillBarMeter(); render(); });
+  persist(); $("meterChips").querySelectorAll("[data-m]").forEach(b => { b.style.cssText = ""; }); renderInfo(); if (sel) fillBarMeter(); render(); });
 $("meterList").addEventListener("input", e => { const t = e.target, i = +t.dataset.i, f = t.dataset.f; if (isNaN(i) || !f) return;
   if (f === "m") { const m = normMeter(t.value); if (!m) return; snap("mm" + i); S.meters[i].m = m; }
   else { const v = parseInt(t.value, 10); if (isNaN(v)) return; snap("m" + f + i); S.meters[i][f] = v; }
@@ -809,7 +822,9 @@ leg.addEventListener("input", e => { const i = +e.target.dataset.i; if (isNaN(i)
   const f = e.target.dataset.f;
   if (f === "c") st.legend[i][1] = e.target.value; else if (f === "a") { st.legend[i][2] = capAbbr(e.target.value); renderSecs(); } else { st.legend[i][0] = e.target.value; renderSecs(); } update(); });
 leg.addEventListener("click", e => { const b = e.target.closest(".x"); if (!b) return; snap(); const d = +b.dataset.i;
-  st.legend.splice(d, 1); S.sections = S.sections.filter(q => q.idx !== d).map(q => (q.idx > d ? (q.idx--, q) : q));
+  S.sections.forEach(q => { if (!q.cid && q.idx === d) { q.label = q.label || secLabel(q); q.color = q.color || secColor(q); q.idx = 0; q.sub = 0; } });
+  st.legend.splice(d, 1); S.sections.forEach(q => { if (!q.cid && q.idx > d) q.idx--; });
+  if (!st.legend.length) S.sections = S.sections.filter(q => q.cid);
   renderLegend(); renderSecs(); update(); });
 $("addLeg").onclick = () => { snap(); st.legend.push(["새 섹션", "#A0D468", ""]); renderLegend(); renderSecs(); update(); };
 const onNum = arr => e => { const t = e.target, i = +t.dataset.i, f = t.dataset.f; if (isNaN(i) || !f) return;
@@ -821,6 +836,8 @@ $("secList").addEventListener("input", e => { const t = e.target, i = +t.dataset
   update(); });
 $("secList").addEventListener("change", e => { if (e.target.tagName === "SELECT") { snap(); const q = S.sections[+e.target.dataset.i], v = e.target.value; delete q.label; delete q.color;
     if (v.startsWith("c:")) { q.cid = v.slice(2); q.idx = -1; q.sub = 0; } else { const [j, k] = v.split(":").map(Number); delete q.cid; q.idx = j; q.sub = k; } renderSecs(); update(); } });
+$("secList").addEventListener("change", e => { if (e.target.dataset.f === "label") renderInfo(); });
+$("cusList").addEventListener("change", () => renderInfo());
 $("secList").addEventListener("click", e => {
   const sw = e.target.closest("[data-pal]"); if (sw) { const p = $("pal" + sw.dataset.i); p.hidden = !p.hidden; return; }
   const pc = e.target.closest("[data-col]"); if (pc) { const i = +pc.dataset.i, q = S.sections[i]; snap();
@@ -847,11 +864,11 @@ $("tabs").addEventListener("click", e => { const b = e.target.closest("button");
 
 /* ---------- songs ---------- */
 function openSong(s) { S = s; st = S.layout; db.cur = S.id; undoStack.length = 0; $("undo").disabled = true; snapTag = null; closeEd(); syncUI(); update(); }
-$("songList").addEventListener("click", e => { const b = e.target.closest(".song"); if (!b) return; const s = db.songs.find(x => x.id === b.dataset.id); if (s) { openSong(s); toast(`'${s.title || "제목 없는 곡"}' 열었어요`); } });
+$("songList").addEventListener("click", e => { const b = e.target.closest(".song"); if (!b) return; const s = db.songs.find(x => x.id === b.dataset.id); if (s) { openSong(s); toast(`'${s.title.replace(/\s*\n\s*/g, " ") || "제목 없는 곡"}' 열었어요`); } });
 $("newSong").onclick = () => { const lay = clone(st); const s = newSong(lay); db.songs.push(s); openSong(s); toast("새 곡을 만들었어요"); };
 $("newSongDef").onclick = () => { const s = newSong(); db.songs.push(s); openSong(s); toast("기본 설정으로 새 곡을 만들었어요"); };
 $("resetLayout").onclick = e => twoTap(e.currentTarget, "이 곡 설정을 기본값으로", () => { snap();
-  const keep = Object.assign({}, S.info), oldF = st.fields; S.layout = clone(LAYOUT); st = S.layout;
+  const keep = Object.assign({}, S.info); S.layout = clone(LAYOUT); st = S.layout;
   S.sections.forEach(q => { if (!q.cid && !st.legend[q.idx]) { q.idx = 0; q.sub = 0; } });
   S.info = keep; syncUI(); update(); toast("설정을 기본값으로 되돌렸어요"); });
 $("dupSong").onclick = () => { const s = clone(S); s.id = uid(); s.title = (S.title || "제목 없는 곡") + " 복사본"; db.songs.push(s); openSong(s); toast("복제했어요"); };
@@ -917,7 +934,11 @@ let deferred = null;
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferred = e; $("install").hidden = false; });
 $("install").onclick = async () => { if (!deferred) return; deferred.prompt(); try { await deferred.userChoice; } catch (e) {} deferred = null; $("install").hidden = true; };
 window.addEventListener("appinstalled", () => { $("install").hidden = true; toast("앱을 설치했어요"); });
-if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !window.claude) navigator.serviceWorker.register("sw.js").catch(() => {});
+if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !window.claude) {
+  const had = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register("sw.js").then(r => r.update()).catch(() => {});
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (had) toast("앱이 새 버전으로 업데이트됐어요. 다시 열면 적용돼요"); });
+}
 
 syncUI(); render();
 new ResizeObserver(() => render()).observe(cv.parentElement);
