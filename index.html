@@ -284,7 +284,7 @@ const LEGEND = [["인트로·아웃트로","#FFB86B","Int/Out"],["벌스","#FFE0
   ["인터루드","#5CCFE6","Inter"],["브릿지","#C39BFF","Br"],["포스트코러스","#FF9ECF","Post"],["솔로","#7CC66B","Solo"]];
 const ABBR = {"인트로·아웃트로":"Int/Out","인트로":"Int","아웃트로":"Out","벌스":"V","프리코러스":"Pre","코러스":"Ch","인터루드":"Inter","브릿지":"Br"};
 const capAbbr = t => String(t || "").split("/").map(x => x.trim()).map(x => x ? x[0].toUpperCase() + x.slice(1) : x).join("/");
-const OLD_FIELDS = ["키, 템포, 스타일, 폼", "템포, 키, 카포, 폼", "템포, 키, 카포, 송폼"], NEW_FIELDS = "키, 카포, 템포, 송폼";
+const OLD_FIELDS = ["키, 템포, 스타일, 폼", "템포, 키, 카포, 폼", "템포, 키, 카포, 송폼", "키, 카포, 템포, 송폼"], NEW_FIELDS = "키, 카포, 박자, 템포, 송폼";
 const SPARE = {"예비 1": ["포스트코러스", "#FF9ECF", "Post"], "예비 2": ["솔로", "#7CC66B", "Solo"]};
 const RECOLOR = {"#2F9E44": "#7CC66B", "#7EDCC4": "#5CCFE6"};
 const swapVP = lay => { if (lay.vpSwap) return; lay.vpSwap = 1;
@@ -299,8 +299,8 @@ const secColor = q => q.color || (q.cid ? (customOf(q.cid) || {}).color : (st.le
 const secLabel = q => { if (q.label) return q.label; if (q.cid) return (customOf(q.cid) || {}).label || ""; const lg = st.legend[q.idx] || ["", "", ""], sb = subsOf(lg); return sb[q.sub || 0] || sb[0] || lg[0]; };
 const subsOf = l => capAbbr(l[2]).split("/").map(t => t.trim()).filter(Boolean);
 const LAYOUT = {rows:12,bars:4,group:0,orient:"p",labelCol:true,labelGray:false,half:false,numbers:false,finalBar:true,
-  title:true,fields:NEW_FIELDS,legendOn:true,memoOn:true,memo:3,memoCols:"2",fillAlpha:"0.45",secNames:true,
-  printChords:true,flats:"1",showMeter:true,legend:LEGEND};
+  title:true,fields:NEW_FIELDS,legendOn:true,memoOn:true,memo:3,memoCols:"1",fillAlpha:"0.45",secNames:true,
+  printChords:true,flats:"1",showMeter:false,legend:LEGEND};
 const KEY = "chordchart-app-v1";
 const clone = o => JSON.parse(JSON.stringify(o));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -405,14 +405,17 @@ function draw(ctx, s, selBar) {
   else if (legB) y = legB;
   const fields = st.fields.split(",").map(t => t.trim()).filter(Boolean);
   if (fields.length) {
-    const GAP = 5, wt = fields.map(f => /폼|form/i.test(f) ? 7 : isTempo(f) ? 1.6 : isKey(f) ? 1.9 : 1), unit = (R - L - GAP * (fields.length - 1)) / wt.reduce((a, b) => a + b, 0);
+    const GAP = 5, wt = fields.map(f => /폼|form/i.test(f) ? 7 : isTempo(f) ? 1.6 : isKey(f) ? 1.9 : isMeterF(f) ? .9 : 1), unit = (R - L - GAP * (fields.length - 1)) / wt.reduce((a, b) => a + b, 0);
     let x = L;
     fields.forEach((f, i) => { const fw = unit * wt[i]; font(7.5); text(x, y + 5, f, 7.5, MID);
       const lw = ctx.measureText(f).width + 2;
       line(x + lw, y + 7, x + fw, y + 7, MID, .5);
       const v = S.info[f];
       const room = fw - lw - 1.4, fit = (t, pt) => { font(pt, 500); while (ctx.measureText(t).width > room && pt > 5) { pt -= .25; font(pt, 500); } return pt; };
-      if (v && isTempo(f)) { const nw = noteGlyph(ctx, x + lw + 1.2, y + 5.6, S.tempoNote || "q"), t = "= " + v;
+      if (isMeterF(f)) { const [a, b2] = meterAt(1).split("/"); font(6.8, 800); ctx.textAlign = "center";
+        const mx = x + lw + 1.2 + Math.max(ctx.measureText(a).width, ctx.measureText(b2).width) / 2;
+        text(mx, y + 3.5, a, 6.8, INK, 800); text(mx, y + 6.5, b2, 6.8, INK, 800); ctx.textAlign = "start"; }
+      else if (v && isTempo(f)) { const nw = noteGlyph(ctx, x + lw + 1.2, y + 5.6, S.tempoNote || "q"), t = "= " + v;
         font(9, 500); let pt = 9; while (ctx.measureText(t).width + nw + .8 > room && pt > 5) { pt -= .25; font(pt, 500); }
         text(x + lw + 1.2 + nw + .8, y + 5.6, t, pt, INK, 500); }
       else if (v) { const km = isKey(f) && v.match(/^([A-G][#b]?)(m)?$/), t = km ? `${pretty(km[1])} ${km[2] ? "minor" : "major"}` : /키|key/i.test(f) ? pretty(v) : v; text(x + lw + 1, y + 5.6, t, fit(t, 9), INK, 500); }
@@ -474,6 +477,7 @@ function draw(ctx, s, selBar) {
   return cells;
 }
 const isTempo = f => /템포|tempo|bpm/i.test(f);
+const isMeterF = f => /^(박자|time|meter)$/i.test(f);
 const NOTES = [["q", "4분음표"], ["dq", "점4분음표"], ["e", "8분음표"], ["h", "2분음표"]];
 function noteGlyph(ctx, x, base, type) {
   const rx = .82, ry = .58, cx = x + rx, cy = base - ry, stemTop = cy - 3.1;
@@ -690,7 +694,7 @@ function renderMeters() {
   $("meterCustom").value = PRESETS.includes(def) ? "" : def;
   $("meterList").innerHTML = S.meters.map((q, i) => `<div class="mi"><input type="text" value="${esc(q.m)}" data-i="${i}" data-f="m" aria-label="박자"><span>마디</span><input type="number" inputmode="numeric" min="1" value="${q.from}" data-i="${i}" data-f="from" aria-label="시작 마디"><span>~</span><input type="number" inputmode="numeric" min="1" value="${q.to}" data-i="${i}" data-f="to" aria-label="끝 마디"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("") || '<p class="hint">모든 마디가 곡 기본 박자예요.</p>';
 }
-$("meterChips").addEventListener("click", e => { const b = e.target.closest("[data-m]"); if (!b) return; snap(); S.meter = b.dataset.m; persist(); renderMeters(); if (sel) fillBarMeter(); render(); });
+$("meterChips").addEventListener("click", e => { const b = e.target.closest("[data-m]"); if (!b) return; snap(); S.meter = b.dataset.m; persist(); renderMeters(); renderInfo(); if (sel) fillBarMeter(); render(); });
 $("meterCustom").addEventListener("input", e => { const m = normMeter(e.target.value); if (!m) return; snap("meterDef"); S.meter = m;
   persist(); $("meterChips").querySelectorAll("[data-m]").forEach(b => { b.style.cssText = ""; }); if (sel) fillBarMeter(); render(); });
 $("meterList").addEventListener("input", e => { const t = e.target, i = +t.dataset.i, f = t.dataset.f; if (isNaN(i) || !f) return;
@@ -706,6 +710,9 @@ function renderInfo() {
   $("info").innerHTML = `<label class="wide">곡명 <small style="font-size:12px">(줄을 바꾸면 두 줄 제목, 너무 길면 자동으로 두 줄)</small><textarea data-f="__title" rows="1" class="ttl">${esc(S.title)}</textarea></label>` +
     fields.map(f => isTempo(f)
       ? `<label class="wide">${esc(f)}<span class="tempo"><select data-tn aria-label="기준 음표">${NOTES.map(([v, l]) => `<option value="${v}"${(S.tempoNote || "q") === v ? " selected" : ""}>${l}</option>`).join("")}</select><input type="text" inputmode="numeric" data-f="${esc(f)}" value="${esc(S.info[f] || "")}" placeholder="예: 120"></span></label>`
+      : isMeterF(f)
+      ? (() => { const cur = normMeter(S.meter) || "4/4", opts = PRESETS.includes(cur) ? PRESETS : [cur, ...PRESETS];
+        return `<label>${esc(f)} <small style="font-size:12px">(첫 마디)</small><select data-meterf aria-label="박자">${opts.map(m => `<option${m === cur ? " selected" : ""}>${m}</option>`).join("")}</select></label>`; })()
       : isKey(f)
       ? (() => { const m = (S.info[f] || "").match(/^([A-G][#b]?)(m)?/) || [], r = m[1] || "", mi = !!m[2];
         return `<label class="wide">${esc(f)}<span class="keyrow"><select data-key="${esc(f)}" aria-label="으뜸음"><option value="">선택 안 함</option>${KEYS.map(k => `<option value="${k}"${k === r ? " selected" : ""}>${pretty(k)}</option>`).join("")}</select><span class="seg" data-kq="${esc(f)}"><button type="button" data-v=""${!mi ? ' class="on"' : ""}>장조</button><button type="button" data-v="m"${mi ? ' class="on"' : ""}>단조</button></span></span></label>`; })()
@@ -717,6 +724,7 @@ const isForm = f => /폼|form/i.test(f);
 const isKey = f => /^(키|key)$/i.test(f);
 const KEYS = ["C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B"];
 function setKey(f, root, minor) { snap(); S.info[f] = root ? root + (minor ? "m" : "") : ""; persist(); render(); }
+$("info").addEventListener("change", e => { if (!("meterf" in e.target.dataset)) return; snap(); S.meter = e.target.value; persist(); renderMeters(); if (sel) fillBarMeter(); render(); });
 $("info").addEventListener("change", e => { const f = e.target.dataset.key; if (f === undefined) return;
   const mi = !!$("info").querySelector(`[data-kq="${CSS.escape(f)}"] .on[data-v="m"]`); setKey(f, e.target.value, mi); });
 $("info").addEventListener("click", e => { const b = e.target.closest("[data-kq] button"); if (!b) return;
