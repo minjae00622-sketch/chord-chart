@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1f3b73">
+<title>코드표</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+/* VOICE: a calm music-desk tool for writing chord charts fast
+   IDEA: a manuscript sheet on a stand with a small keypad beside it
+   PICTURE: the live A4 chart, tappable bar by bar
+   COLOUR and TYPE: white paper, deep indigo #1f3b73 frame, blue accent; system Korean sans
+   LAYOUT: sheet left, tabbed panel right; on phones sheet, keypad, then tabs */
+:root{color-scheme:light dark;--bg:light-dark(#eceff4,#14161a);--panel:light-dark(#fff,#1d2026);--ink:light-dark(#1b2230,#e8eaee);--mute:light-dark(#667080,#9aa2ae);--line:light-dark(#dce0e7,#30343c);--acc:light-dark(#2f6fde,#7aa7ff);--accInk:light-dark(#fff,#0d1220);--top:#1f3b73;--soft:light-dark(#eef3fd,#222a3a)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,"Noto Sans KR","Noto Sans CJK KR",sans-serif;overflow-x:clip;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit}
+.top{position:sticky;top:0;z-index:5;background:var(--top);color:#fff;display:flex;align-items:center;gap:8px;padding:8px max(3vw,12px);padding-top:max(8px,env(safe-area-inset-top))}
+.top h1{font-size:18px;margin:0 auto 0 4px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb{height:40px;padding:0 12px;border:1px solid rgba(255,255,255,.28);border-radius:10px;background:transparent;color:#fff;font-size:14px;cursor:pointer;white-space:nowrap}
+.tb.solid{background:#fff;color:var(--top);border-color:#fff;font-weight:700}
+.tb:disabled{opacity:.4}
+.tb[hidden]{display:none}
+.wrap{max-width:1240px;margin:0 auto;padding:16px max(3vw,12px) 48px}
+.grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;align-items:start}
+.sheet{position:sticky;top:72px}
+.paper{background:#fff;border-radius:6px;box-shadow:0 1px 2px rgba(0,0,0,.08),0 12px 32px rgba(20,30,50,.16);touch-action:manipulation}
+canvas{display:block;width:100%;height:auto;border-radius:6px;cursor:pointer}
+.count{margin-top:8px;color:var(--mute);font-size:13px;text-align:center}
+.ed{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:12px;box-shadow:0 6px 20px rgba(20,30,50,.10)}
+.side .ed{position:sticky;top:68px;z-index:3}
+.ed[hidden]{display:none}
+.edh{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.edh b{font-size:15px;margin-right:auto}
+.ib{width:44px;height:40px;border:1px solid var(--line);border-radius:10px;background:transparent;cursor:pointer;font-size:18px}
+.cin{width:100%;font-size:22px;font-weight:600;padding:8px 12px;height:48px;border:2px solid var(--acc);border-radius:10px;background:transparent;color:var(--ink);letter-spacing:.02em}
+.pad{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin-top:8px}
+.pad button{height:42px;border:1px solid var(--line);border-radius:9px;background:var(--soft);cursor:pointer;font-size:15px;font-weight:600}
+.pad button.n{background:var(--panel);font-size:17px}
+.pad button.w2{grid-column:span 2}
+.pad button:active{background:var(--acc);color:var(--accInk)}
+.edf{display:flex;gap:8px;margin-top:8px}
+.edf button{flex:1;height:44px;border-radius:10px;border:1px solid var(--line);background:transparent;cursor:pointer;font-weight:500}
+.edf .go{background:var(--acc);color:var(--accInk);border-color:var(--acc);font-weight:700}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs button{flex:1;height:48px;border:0;background:transparent;cursor:pointer;font-size:15px;color:var(--mute);border-bottom:3px solid transparent}
+.tabs button.on{color:var(--ink);font-weight:700;border-bottom-color:var(--acc)}
+.pn{padding:4px 16px 12px}
+.pn[hidden]{display:none}
+.sec{padding:12px 0;border-bottom:1px solid var(--line)}
+.sec:last-child{border-bottom:0}
+h2{font-size:15px;margin:0 0 8px;font-weight:700}
+.hint{font-size:13px;color:var(--mute);margin:2px 0 8px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;min-height:44px}
+.row>span{font-size:15px}
+.step{display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.step button{width:44px;height:40px;border:0;background:transparent;font-size:20px;cursor:pointer}
+.step output{width:42px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{min-width:52px;height:40px;border:0;background:transparent;font-size:14px;padding:0 12px;cursor:pointer}
+.seg button.on{background:var(--acc);color:var(--accInk)}
+.tog{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer;font-size:15px}
+.tog input{width:22px;height:22px;accent-color:var(--acc);flex:none}
+.toggles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px}
+input[type=text],input[type=number],select{width:100%;height:42px;font:inherit;font-size:16px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink)}
+.info{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.info label{font-size:13px;color:var(--mute);display:grid;gap:2px}
+.info .wide{grid-column:1/-1}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{height:40px;padding:0 14px;border:1px solid var(--line);border-radius:20px;background:transparent;font-size:14px;cursor:pointer}
+.chip.warn{color:#c2362b;border-color:currentColor}
+.list{display:grid;gap:8px}
+.li{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:8px;align-items:center}
+.li input[type=color]{width:44px;height:40px;border:1px solid var(--line);border-radius:10px;padding:3px;background:transparent;cursor:pointer}
+.si{display:grid;grid-template-columns:minmax(0,1fr) 60px 10px 60px 44px;gap:6px;align-items:center}
+.ri{display:grid;grid-template-columns:auto 60px auto 60px 44px;gap:8px;align-items:center;font-size:14px}
+.x{width:44px;height:40px;border:0;background:transparent;color:var(--mute);font-size:20px;cursor:pointer;border-radius:10px}
+.x:hover{background:var(--line)}
+.add{margin-top:8px}
+.songs{display:grid;gap:6px}
+.song{display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:transparent;cursor:pointer;text-align:start;width:100%}
+.song.on{border-color:var(--acc);background:var(--soft)}
+.song b{display:block;font-size:15px}
+.song small{color:var(--mute);font-size:13px}
+.msg{font-size:14px;color:var(--mute);min-height:1.4em;margin:8px 0 0}
+.toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%);background:#1b2230;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9;max-width:90vw}
+.toast.show{opacity:1}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+@media(max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}.sheet{position:static;max-width:560px;margin:0 auto;width:100%}}
+@media(max-width:900px){.side .ed{position:fixed;top:auto;left:0;right:0;bottom:0;margin:0;z-index:6;border-radius:16px 16px 0 0;box-shadow:0 -8px 28px rgba(10,20,40,.22);max-height:62vh;overflow:auto;padding:10px max(3vw,12px) max(10px,env(safe-area-inset-bottom))}.ed .pad,.ed .edf,.ed .cin,.ed .edh,.ed .tog{max-width:640px;margin-left:auto;margin-right:auto}body.editing{padding-bottom:62vh}}
+@media(max-width:420px){.toggles{grid-template-columns:minmax(0,1fr)}.pad{grid-template-columns:repeat(6,minmax(0,1fr))}.top .hide-s{display:none}}
+@media(prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1 id="appTitle">코드표</h1>
+  <button class="tb" id="undo" disabled>되돌리기</button>
+  <button class="tb hide-s" id="png">PNG</button>
+  <button class="tb solid" id="pdf">PDF 저장</button>
+  <button class="tb" id="install" hidden>앱 설치</button>
+</header>
+<main class="wrap">
+  <div class="grid">
+    <div class="sheet">
+      <div class="paper"><canvas id="cv" aria-label="코드표 미리보기. 마디를 눌러 코드를 입력하세요."></canvas></div>
+      <div class="count" id="count"></div>
+    </div>
+    <div class="side">
+      <div class="ed" id="ed" hidden>
+        <div class="edh">
+          <b id="edBar">마디 1</b>
+          <button class="ib" id="prev" aria-label="이전 마디">‹</button>
+          <button class="ib" id="next" aria-label="다음 마디">›</button>
+          <button class="ib" id="close" aria-label="닫기">×</button>
+        </div>
+        <input class="cin" id="cin" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="예: Dm7 G7">
+        <div class="pad" id="pad"></div>
+        <div class="edf">
+          <button id="clearBar">이 마디 지우기</button>
+          <button class="go" id="okNext">다음 마디 →</button>
+        </div>
+        <label class="tog" style="min-height:36px;font-size:14px"><input type="checkbox" id="kbd">기기 자판으로 입력</label>
+      </div>
+    <div class="panel">
+      <nav class="tabs" id="tabs">
+        <button data-tab="chords" class="on">곡·코드</button>
+        <button data-tab="form">송폼</button>
+        <button data-tab="layout">레이아웃</button>
+        <button data-tab="songs">곡 목록</button>
+      </nav>
+
+      <section class="pn" data-panel="chords">
+        <div class="sec">
+          <h2>곡 정보</h2>
+          <div class="info" id="info"></div>
+        </div>
+        <div class="sec">
+          <h2>코드 입력</h2>
+          <p class="hint">악보의 마디를 누르면 입력창이 열려요. 한 마디에 코드가 여러 개면 띄어 쓰세요 (예: Dm7 G7). 앞 마디 반복은 %.</p>
+          <div class="chips"><button class="chip" id="startInput">1마디부터 입력</button><button class="chip warn" id="clearAll">코드 모두 지우기</button></div>
+          <label class="tog"><input type="checkbox" data-k="printChords">코드를 악보에 표시</label>
+        </div>
+        <div class="sec">
+          <h2>조옮김</h2>
+          <div class="row"><span>반음 단위로 옮기기</span><div class="chips"><button class="chip" data-tr="-1">−1</button><button class="chip" data-tr="1">+1</button></div></div>
+          <div class="row"><span>임시표</span><div class="seg" data-k="flats"><button data-v="1">♭ 위주</button><button data-v="0">♯ 위주</button></div></div>
+        </div>
+      </section>
+
+      <section class="pn" data-panel="form" hidden>
+        <div class="sec">
+          <h2>송폼 구간</h2>
+          <p class="hint">구간을 등록하면 해당 마디가 범례 색으로 칠해져요.</p>
+          <div class="list" id="secList"></div>
+          <button class="chip add" id="addSec">+ 구간 추가</button>
+          <div class="row" style="margin-top:6px"><span>색 진하기</span><div class="seg" data-k="fillAlpha"><button data-v="0.25">연하게</button><button data-v="0.45">보통</button><button data-v="0.7">진하게</button></div></div>
+          <label class="tog"><input type="checkbox" data-k="secNames">섹션 칸에 이름 쓰기</label>
+        </div>
+        <div class="sec">
+          <h2>색상 범례</h2>
+          <label class="tog"><input type="checkbox" data-k="legendOn">범례 보이기</label>
+          <div class="list" id="leg"></div>
+          <button class="chip add" id="addLeg">+ 항목 추가</button>
+        </div>
+      </section>
+
+      <section class="pn" data-panel="layout" hidden>
+        <div class="sec">
+          <h2>격자</h2>
+          <div class="chips" style="margin-bottom:6px"><button class="chip" data-rows="8">32마디</button><button class="chip" data-rows="12">48마디</button><button class="chip" data-rows="16">64마디</button></div>
+          <div class="row"><span>줄 수</span><div class="step" data-k="rows" data-min="2" data-max="30"><button aria-label="줄이기">−</button><output></output><button aria-label="늘리기">+</button></div></div>
+          <div class="row"><span>한 줄 마디 수</span><div class="step" data-k="bars" data-min="1" data-max="8"><button aria-label="줄이기">−</button><output></output><button aria-label="늘리기">+</button></div></div>
+          <div class="row"><span>굵은 구분선 (몇 줄마다, 0은 없음)</span><div class="step" data-k="group" data-min="0" data-max="8"><button aria-label="줄이기">−</button><output></output><button aria-label="늘리기">+</button></div></div>
+          <div class="row"><span>용지 방향</span><div class="seg" data-k="orient"><button data-v="p">세로</button><button data-v="l">가로</button></div></div>
+          <div class="toggles">
+            <label class="tog"><input type="checkbox" data-k="labelCol">왼쪽 섹션 칸</label>
+            <label class="tog"><input type="checkbox" data-k="labelGray">섹션 칸 회색</label>
+            <label class="tog"><input type="checkbox" data-k="half">반 마디 점선</label>
+            <label class="tog"><input type="checkbox" data-k="numbers">마디 번호</label>
+            <label class="tog"><input type="checkbox" data-k="finalBar">끝 겹세로줄</label>
+          </div>
+        </div>
+        <div class="sec">
+          <h2>마디 수가 다른 줄</h2>
+          <p class="hint">특정 줄만 5마디처럼 다르게 나눌 때 써요.</p>
+          <div class="list" id="rowList"></div>
+          <button class="chip add" id="addRow">+ 줄 추가</button>
+        </div>
+        <div class="sec">
+          <h2>위쪽 정보 칸</h2>
+          <label class="tog"><input type="checkbox" data-k="title">곡명 줄</label>
+          <p class="hint">정보 칸 이름 (쉼표로 구분, 비우면 없음)</p>
+          <input type="text" id="fields">
+        </div>
+        <div class="sec">
+          <h2>아래 메모</h2>
+          <label class="tog"><input type="checkbox" data-k="memoOn">메모 칸 보이기 (끄면 코드표가 아래로 길어져요)</label>
+          <div class="row"><span>메모 줄 수</span><div class="step" data-k="memo" data-min="1" data-max="12"><button aria-label="줄이기">−</button><output></output><button aria-label="늘리기">+</button></div></div>
+          <div class="row"><span>메모 칸 나누기</span><div class="seg" data-k="memoCols"><button data-v="1">한 칸</button><button data-v="2">두 칸</button></div></div>
+        </div>
+      </section>
+
+      <section class="pn" data-panel="songs" hidden>
+        <div class="sec">
+          <div class="chips" style="margin-bottom:10px"><button class="chip" id="newSong">+ 새 곡</button><button class="chip" id="dupSong">복제</button><button class="chip warn" id="delSong">이 곡 삭제</button></div>
+          <p class="hint">새 곡은 지금 곡의 레이아웃과 범례를 그대로 가져가요.</p>
+          <div class="songs" id="songList"></div>
+        </div>
+        <div class="sec">
+          <h2>백업</h2>
+          <p class="hint">곡은 이 기기에만 저장돼요. 기기를 바꾸거나 앱을 지우기 전에 백업 파일로 내보내 두세요.</p>
+          <div class="chips"><button class="chip" id="exportJson">백업 파일 내보내기</button><label class="chip" style="display:inline-flex;align-items:center">백업 불러오기<input type="file" id="importJson" accept=".json,application/json" hidden></label></div>
+        </div>
+      </section>
+    </div>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast" role="status"></div>
+<script>
+{
+/* ---------- data ---------- */
+const LEGEND = [["인트로·아웃트로","#FFB86B"],["벌스","#8EC5FF"],["프리코러스","#FFE066"],["코러스","#FF8A80"],
+  ["인터루드","#7EDCC4"],["브릿지","#C39BFF"],["예비 1","#FF9ECF"],["예비 2","#BFC5CC"]];
+const LAYOUT = {rows:12,bars:4,group:0,orient:"p",labelCol:true,labelGray:false,half:false,numbers:false,finalBar:true,
+  title:true,fields:"키, 템포, 스타일, 폼",legendOn:true,memoOn:true,memo:3,memoCols:"2",fillAlpha:"0.45",secNames:true,
+  printChords:true,flats:"1",legend:LEGEND};
+const KEY = "chordchart-app-v1";
+const clone = o => JSON.parse(JSON.stringify(o));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const newSong = lay => ({id: uid(), title: "", info: {}, chords: {}, sections: [], rowBars: [], layout: clone(lay || LAYOUT), updated: Date.now()});
+let db = null;
+try { db = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
+if (!db || !Array.isArray(db.songs) || !db.songs.length) { const s = newSong(); db = {songs: [s], cur: s.id, kbd: false}; }
+db.songs.forEach(s => { s.layout = Object.assign(clone(LAYOUT), s.layout); s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || []; });
+let S = db.songs.find(s => s.id === db.cur) || db.songs[0];
+let st = S.layout;
+let saveT = 0;
+const persist = () => { S.updated = Date.now(); clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast("저장 공간이 부족해서 저장하지 못했어요"); } }, 250); };
+const $ = id => document.getElementById(id);
+const esc = t => String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let tt = 0;
+const toast = t => { const el = $("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(tt); tt = setTimeout(() => el.classList.remove("show"), 2200); };
+
+/* ---------- undo ---------- */
+const undoStack = [];
+let snapTag = null;
+function snap(tag) {
+  if (tag && tag === snapTag) return;
+  snapTag = tag || null;
+  undoStack.push(JSON.stringify(S)); if (undoStack.length > 60) undoStack.shift();
+  $("undo").disabled = false;
+}
+$("undo").onclick = () => {
+  const j = undoStack.pop(); if (!j) return;
+  const o = JSON.parse(j), i = db.songs.findIndex(s => s.id === o.id);
+  if (i >= 0) { db.songs[i] = o; S = o; st = S.layout; }
+  snapTag = null; $("undo").disabled = !undoStack.length;
+  syncUI(); update(); if (sel) openEd(sel);
+};
+
+/* ---------- chords ---------- */
+const NAT = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+const SH = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"], FL = ["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"];
+const pc = n => (NAT[n[0]] + (n[1] === "#" ? 1 : n[1] === "b" ? -1 : 0) + 12) % 12;
+const tn = (n, d) => (st.flats === "1" ? FL : SH)[(pc(n) + d + 120) % 12];
+const RX = /^([A-G][#b]?)([^/]*)(?:\/([A-G][#b]?))?$/;
+function trTok(t, d) { const m = t.match(RX); if (!m) return t; return tn(m[1], d) + m[2] + (m[3] ? "/" + tn(m[3], d) : ""); }
+const pretty = t => t.replace(/#/g, "♯").replace(/(^|[^A-Za-z])b(?=\d)|(?<=[A-G])b/g, (m, p) => (p || "") + "♭");
+const toks = s => (s || "").trim().split(/\s+/).filter(Boolean);
+
+/* ---------- drawing ---------- */
+const INK = "#2b2b2b", MID = "#8a8a8a", LIGHT = "#c9c9c9", PT = 0.3528;
+const FONT = 'system-ui, "Noto Sans KR", "Noto Sans CJK KR", sans-serif';
+const dims = () => st.orient === "p" ? [210, 297] : [297, 210];
+function rowBarsOf() { const ov = {}; S.rowBars.forEach(o => { if (o.row >= 1 && o.row <= st.rows) ov[o.row - 1] = Math.max(1, Math.min(8, o.bars | 0)); });
+  return Array.from({length: st.rows}, (_, r) => ov[r] || st.bars); }
+const total = () => rowBarsOf().reduce((a, b) => a + b, 0);
+
+function draw(ctx, s, selBar) {
+  const [W, H] = dims();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.setTransform(s, 0, 0, s, 0, 0);
+  const L = 14, R = W - 14, cells = [];
+  const line = (x1, y1, x2, y2, c, lw, dash) => { ctx.beginPath(); ctx.strokeStyle = c; ctx.lineWidth = lw * PT; ctx.lineCap = "butt";
+    ctx.setLineDash(dash || []); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]); };
+  const font = (pt, w) => { ctx.font = `${w || 400} ${pt * PT}px ${FONT}`; };
+  const text = (x, y, t, pt, c, w) => { font(pt, w); ctx.fillStyle = c; ctx.textBaseline = "alphabetic"; ctx.fillText(t, x, y); };
+  let y = 10;
+  if (st.title) { text(L, y + 5, "곡명", 8, MID); line(L + 10, y + 7, R, y + 7, INK, .7);
+    if (S.title) text(L + 12, y + 5.6, S.title, 11, INK, 700); y += 12; }
+  const fields = st.fields.split(",").map(t => t.trim()).filter(Boolean);
+  if (fields.length) {
+    const fw = (R - L) / fields.length;
+    fields.forEach((f, i) => { const x = L + i * fw; font(7.5); text(x, y + 5, f, 7.5, MID);
+      const lw = ctx.measureText(f).width + 2;
+      line(x + lw, y + 7, i === fields.length - 1 ? R : x + fw - 4, y + 7, MID, .5);
+      const v = S.info[f]; if (v) text(x + lw + 1, y + 5.6, /키|key/i.test(f) ? pretty(v) : v, 9, INK, 500); });
+    y += 11;
+  }
+  const items = st.legend.filter(l => l[0].trim());
+  if (st.legendOn && items.length) {
+    font(6.5);
+    const ws = items.map(([t]) => 5 + ctx.measureText(t).width), rows = [];
+    let cur = [], tw = 0;
+    ws.forEach((w, i) => { if (cur.length && tw + w + 5 > R - L) { rows.push(cur); cur = []; tw = 0; } tw += w + (cur.length ? 5 : 0); cur.push(i); });
+    if (cur.length) rows.push(cur);
+    rows.forEach(r => { const sum = r.reduce((a, i) => a + ws[i], 0);
+      const gap = rows.length === 1 && r.length > 1 ? (R - L - sum) / (r.length - 1) : 5;
+      let x = L; const cy = y + 3.5;
+      r.forEach(i => { ctx.fillStyle = items[i][1]; ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(x, cy - 1.8, 3.6, 3.6, .7) : ctx.rect(x, cy - 1.8, 3.6, 3.6); ctx.fill();
+        text(x + 5, cy + 1.1, items[i][0], 6.5, "#555"); x += ws[i] + gap; });
+      y += 6.5; });
+    y += 2;
+  }
+  const GY = y + 3, memoOn = st.memoOn && st.memo > 0, memoH = memoOn ? st.memo * 7 + 6 : 0;
+  const GB = H - 10 - memoH - (memoH ? 4 : 0), rowH = (GB - GY) / st.rows, LAB = st.labelCol ? 10 : 0, RB = rowBarsOf();
+  const secOf = k => { for (let i = S.sections.length - 1; i >= 0; i--) { const q = S.sections[i];
+    if (k >= q.from && k <= q.to && st.legend[q.idx]) return q; } return null; };
+  let k0 = 0;
+  for (let r = 0; r < st.rows; r++) {
+    const nb = RB[r], BW = (R - L - LAB) / nb, y0 = GY + r * rowH;
+    if (LAB && st.labelGray) { ctx.fillStyle = "#f2f2f2"; ctx.fillRect(L, y0, LAB, rowH); }
+    ctx.globalAlpha = +st.fillAlpha;
+    for (let b = 0; b < nb; b++) { const q = secOf(k0 + b + 1);
+      if (q) { ctx.fillStyle = st.legend[q.idx][1]; ctx.fillRect(L + LAB + b * BW, y0, BW, rowH); } }
+    const q0 = secOf(k0 + 1);
+    if (LAB && q0) { ctx.fillStyle = st.legend[q0.idx][1]; ctx.fillRect(L, y0, LAB, rowH); }
+    ctx.globalAlpha = 1;
+    if (LAB && st.secNames) {
+      const qs = S.sections.find(q => q.from >= k0 + 1 && q.from <= k0 + nb && st.legend[q.idx]);
+      if (qs) { const t = st.legend[qs.idx][0]; let sz = 6.5; font(sz, 500);
+        while (ctx.measureText(t).width > LAB - 1.4 && sz > 3.2) { sz -= .25; font(sz, 500); }
+        text(L + .7, y0 + Math.min(4, rowH * .5), t, sz, "#333", 500); }
+    }
+    for (let b = 0; b < nb; b++) {
+      const bx = L + LAB + b * BW, k = k0 + b + 1;
+      cells.push({k, x: bx, y: y0, w: BW, h: rowH});
+      if (st.numbers) text(bx + 1.2, y0 + 3.2, String(k), 5, MID);
+      if (st.half) line(bx + BW / 2, y0 + Math.min(3, rowH * .2), bx + BW / 2, y0 + rowH - Math.min(3, rowH * .2), LIGHT, .5, [.7, .7]);
+      if (b) line(bx, y0, bx, y0 + rowH, INK, .7);
+      if (st.printChords && S.chords[k]) drawChords(ctx, toks(S.chords[k]), bx, y0, BW, rowH, font);
+      if (selBar === k) { ctx.strokeStyle = "#2f6fde"; ctx.lineWidth = .8; ctx.strokeRect(bx + .6, y0 + .6, BW - 1.2, rowH - 1.2); }
+    }
+    line(L, y0, R, y0, INK, r === 0 || (st.group && r % st.group === 0) ? 1.2 : .5);
+    k0 += nb;
+  }
+  line(L, GB, R, GB, INK, 1.2); line(L, GY, L, GB, INK, 1.2);
+  if (LAB) line(L + LAB, GY, L + LAB, GB, INK, .8);
+  line(R, GY, R, GB, INK, 1.2);
+  if (st.finalBar) line(R - 1.2, GY, R - 1.2, GB, INK, .5);
+  if (memoOn) { const cols = +st.memoCols, cw = (R - L - 8 * (cols - 1)) / cols;
+    for (let c = 0; c < cols; c++) { const cx = L + c * (cw + 8);
+      for (let i = 0; i < st.memo; i++) { const yy = GB + 10 + i * 7; line(cx, yy, cx + cw, yy, LIGHT, .5); } } }
+  return cells;
+}
+function drawChords(ctx, list, x, y, w, h, font) {
+  const n = list.length, slot = w / n;
+  let size = Math.min(h * 0.42, 6.2);
+  const parts = list.map(t => { if (t === "%") return {root: "%", ext: "", bass: ""};
+    const m = t.match(RX); return m ? {root: pretty(m[1]), ext: pretty(m[2]), bass: m[3] ? "/" + pretty(m[3]) : ""} : {root: pretty(t), ext: "", bass: ""}; });
+  const meas = (p, sz) => { ctx.font = `600 ${sz}px ${FONT}`; let a = ctx.measureText(p.root).width;
+    ctx.font = `500 ${sz * .62}px ${FONT}`; return a + ctx.measureText(p.ext + p.bass).width + .3; };
+  parts.forEach(p => { while (meas(p, size) > slot - 2.4 && size > 2.2) size -= .2; });
+  const base = y + h * 0.5 + size * 0.36;
+  parts.forEach((p, i) => {
+    let cx = x + i * slot + (p.root === "%" ? slot / 2 - meas(p, size) / 2 : 1.6);
+    ctx.fillStyle = "#151515"; ctx.textBaseline = "alphabetic";
+    ctx.font = `600 ${size}px ${FONT}`; ctx.fillText(p.root[0], cx, base); cx += ctx.measureText(p.root[0]).width;
+    if (p.root.length > 1) { ctx.font = `600 ${size * .72}px ${FONT}`; ctx.fillText(p.root.slice(1), cx - size * .04, base - size * .22); cx += ctx.measureText(p.root.slice(1)).width - size * .06; }
+    cx += .3;
+    ctx.font = `500 ${size * .62}px ${FONT}`;
+    if (p.ext) { ctx.fillText(p.ext, cx, base - size * .32); }
+    if (p.bass) { const ew = p.ext ? ctx.measureText(p.ext).width : 0; ctx.fillText(p.bass, cx + ew, base); }
+  });
+}
+
+/* ---------- preview + editor ---------- */
+const cv = $("cv");
+let cells = [], sel = 0;
+function render() {
+  const [W, H] = dims(), dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const s = (cv.parentElement.clientWidth || 400) * dpr / W;
+  cv.width = Math.round(W * s); cv.height = Math.round(H * s);
+  cells = draw(cv.getContext("2d"), s, sel);
+  $("count").textContent = `${total()}마디 · A4 ${st.orient === "p" ? "세로" : "가로"} · 마디를 눌러 코드 입력`;
+  $("appTitle").textContent = S.title || "제목 없는 곡";
+}
+cv.addEventListener("click", e => {
+  const r = cv.getBoundingClientRect(), [W, H] = dims();
+  const mx = (e.clientX - r.left) / r.width * W, my = (e.clientY - r.top) / r.height * H;
+  const c = cells.find(c => mx >= c.x && mx <= c.x + c.w && my >= c.y && my <= c.y + c.h);
+  if (c) openEd(c.k);
+});
+const cin = $("cin");
+function openEd(k) {
+  sel = Math.max(1, Math.min(total(), k)); $("ed").hidden = false; document.body.classList.add("editing");
+  $("edBar").textContent = `마디 ${sel} / ${total()}`;
+  cin.value = S.chords[sel] || ""; cin.inputMode = db.kbd ? "text" : "none";
+  render(); cin.focus({preventScroll: true});
+  const c = cells.find(x => x.k === sel), ed = $("ed");
+  if (c && getComputedStyle(ed).position === "fixed") {
+    const r = cv.getBoundingClientRect(), H = dims()[1];
+    const top = r.top + c.y / H * r.height, bot = r.top + (c.y + c.h) / H * r.height;
+    const limit = window.innerHeight - ed.offsetHeight - 12;
+    if (bot > limit) window.scrollBy({top: bot - limit, behavior: "smooth"});
+    else if (top < 64) window.scrollBy({top: top - 72, behavior: "smooth"});
+  }
+  try { cin.setSelectionRange(cin.value.length, cin.value.length); } catch (e) {}
+}
+const closeEd = () => { sel = 0; $("ed").hidden = true; document.body.classList.remove("editing"); render(); };
+function setBar(v) { snap("bar" + sel); const t = v.trim().replace(/\s+/g, " ");
+  if (t) S.chords[sel] = t; else delete S.chords[sel]; persist(); render(); }
+cin.addEventListener("input", () => setBar(cin.value));
+cin.addEventListener("keydown", e => {
+  if (e.key === "Enter" || (e.key === "Tab" && !e.shiftKey)) { e.preventDefault(); openEd(sel + 1); }
+  else if (e.key === "Tab" && e.shiftKey) { e.preventDefault(); openEd(sel - 1); }
+  else if (e.key === "Escape") closeEd();
+});
+$("prev").onclick = () => openEd(sel - 1);
+$("next").onclick = () => openEd(sel + 1);
+$("okNext").onclick = () => openEd(sel + 1);
+$("close").onclick = closeEd;
+$("clearBar").onclick = () => { cin.value = ""; setBar(""); cin.focus(); };
+$("kbd").onchange = e => { db.kbd = e.target.checked; persist(); cin.inputMode = db.kbd ? "text" : "none"; cin.blur(); cin.focus(); };
+const PAD = [["C","n"],["D","n"],["E","n"],["F","n"],["G","n"],["A","n"],["B","n"],["b","♭"],
+  ["#","♯"],["m"],["7"],["maj7"],["m7"],["m7b5","ø"],["dim"],["sus4"],
+  ["6"],["9"],["11"],["13"],["alt"],["/"],["%"],["⌫","⌫"],[" ","띄어쓰기","w2"]];
+$("pad").innerHTML = PAD.map(([v, l, c]) => `<button type="button" data-v="${esc(v)}" class="${l === "n" ? "n" : c || ""}">${esc(l && l !== "n" ? l : v)}</button>`).join("");
+$("pad").addEventListener("pointerdown", e => e.preventDefault());
+$("pad").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const v = b.dataset.v, a = cin.selectionStart ?? cin.value.length, z = cin.selectionEnd ?? a;
+  let s = cin.value, p;
+  if (v === "⌫") { if (a !== z) { s = s.slice(0, a) + s.slice(z); p = a; } else if (a > 0) { s = s.slice(0, a - 1) + s.slice(a); p = a - 1; } else p = 0; }
+  else { const ins = /^[A-G]$/.test(v) && a > 0 && s[a - 1] !== " " && s[a - 1] !== "/" ? " " + v : v;
+    s = s.slice(0, a) + ins + s.slice(z); p = a + ins.length; }
+  cin.value = s; cin.focus({preventScroll: true});
+  try { cin.setSelectionRange(p, p); } catch (e) {}
+  setBar(s);
+});
+$("startInput").onclick = () => openEd(1);
+let armed = null;
+function twoTap(btn, label, fn) {
+  if (armed === btn) { armed = null; btn.textContent = label; fn(); return; }
+  armed = btn; btn.textContent = "한 번 더 누르면 실행"; setTimeout(() => { if (armed === btn) { armed = null; btn.textContent = label; } }, 3000);
+}
+$("clearAll").onclick = e => twoTap(e.currentTarget, "코드 모두 지우기", () => { snap(); S.chords = {}; persist(); if (sel) openEd(sel); render(); toast("코드를 모두 지웠어요"); });
+document.querySelectorAll("[data-tr]").forEach(b => b.onclick = () => {
+  const d = +b.dataset.tr; snap();
+  for (const k in S.chords) S.chords[k] = toks(S.chords[k]).map(t => trTok(t, d)).join(" ");
+  const keyF = Object.keys(S.info).find(f => /키|key/i.test(f));
+  if (keyF && S.info[keyF]) S.info[keyF] = S.info[keyF].replace(/^([A-G][#b]?)/, m => tn(m, d));
+  persist(); renderInfo(); if (sel) cin.value = S.chords[sel] || ""; render(); toast(`반음 ${d > 0 ? "올렸어요" : "내렸어요"}`);
+});
+
+/* ---------- panels ---------- */
+function renderInfo() {
+  const fields = st.fields.split(",").map(t => t.trim()).filter(Boolean);
+  $("info").innerHTML = `<label class="wide">곡명<input type="text" data-f="__title" value="${esc(S.title)}"></label>` +
+    fields.map(f => `<label>${esc(f)}<input type="text" data-f="${esc(f)}" value="${esc(S.info[f] || "")}"></label>`).join("");
+}
+$("info").addEventListener("input", e => { const f = e.target.dataset.f; if (!f) return; snap("info" + f);
+  if (f === "__title") S.title = e.target.value; else S.info[f] = e.target.value; persist(); render(); renderSongs(); });
+function renderLegend() {
+  $("leg").innerHTML = st.legend.map(([t, c], i) => `<div class="li"><input type="color" value="${c}" data-i="${i}" aria-label="색"><input type="text" value="${esc(t)}" data-i="${i}" aria-label="이름"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("");
+}
+function renderSecs() {
+  $("secList").innerHTML = S.sections.map((q, i) => `<div class="si"><select data-i="${i}" aria-label="섹션">${st.legend.map(([t], j) => `<option value="${j}"${j === q.idx ? " selected" : ""}>${esc(t || "(이름 없음)")}</option>`).join("")}</select><input type="number" inputmode="numeric" min="1" value="${q.from}" data-i="${i}" data-f="from" aria-label="시작 마디"><span>~</span><input type="number" inputmode="numeric" min="1" value="${q.to}" data-i="${i}" data-f="to" aria-label="끝 마디"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("") || '<p class="hint">아직 등록한 구간이 없어요.</p>';
+}
+function renderRows() {
+  $("rowList").innerHTML = S.rowBars.map((o, i) => `<div class="ri"><span>줄</span><input type="number" inputmode="numeric" min="1" value="${o.row}" data-i="${i}" data-f="row" aria-label="줄 번호"><span>마디 수</span><input type="number" inputmode="numeric" min="1" max="8" value="${o.bars}" data-i="${i}" data-f="bars" aria-label="마디 수"><button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("");
+}
+function renderSongs() {
+  const list = [...db.songs].sort((a, b) => b.updated - a.updated);
+  $("songList").innerHTML = list.map(s => { const n = Object.keys(s.chords).length, d = new Date(s.updated);
+    return `<button class="song${s.id === S.id ? " on" : ""}" data-id="${s.id}"><span><b>${esc(s.title || "제목 없는 곡")}</b><small>코드 ${n}마디 · ${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}</small></span></button>`; }).join("");
+}
+function syncUI() {
+  document.querySelectorAll(".step").forEach(el => el.querySelector("output").textContent = st[el.dataset.k]);
+  document.querySelectorAll(".seg").forEach(el => el.querySelectorAll("button").forEach(b => b.classList.toggle("on", String(st[el.dataset.k]) === b.dataset.v)));
+  document.querySelectorAll(".tog input[data-k]").forEach(i => i.checked = !!st[i.dataset.k]);
+  $("fields").value = st.fields; $("kbd").checked = !!db.kbd;
+  renderInfo(); renderLegend(); renderSecs(); renderRows(); renderSongs();
+}
+const update = () => { persist(); render(); };
+
+document.querySelectorAll(".step").forEach(el => {
+  const [minus, plus] = el.querySelectorAll("button"), k = el.dataset.k, mn = +el.dataset.min, mx = +el.dataset.max;
+  const go = d => { snap("step" + k); st[k] = Math.max(mn, Math.min(mx, st[k] + d)); el.querySelector("output").textContent = st[k]; update(); };
+  minus.onclick = () => go(-1); plus.onclick = () => go(1);
+});
+document.querySelectorAll(".seg").forEach(el => el.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return; snap(); st[el.dataset.k] = b.dataset.v; syncUI(); update();
+}));
+document.querySelectorAll(".tog input[data-k]").forEach(i => i.onchange = () => { snap(); st[i.dataset.k] = i.checked; update(); });
+$("fields").oninput = e => { snap("fields"); st.fields = e.target.value; renderInfo(); update(); };
+document.querySelectorAll("[data-rows]").forEach(b => b.onclick = () => { snap(); st.rows = +b.dataset.rows; st.bars = 4; syncUI(); update(); });
+const leg = $("leg");
+leg.addEventListener("input", e => { const i = +e.target.dataset.i; if (isNaN(i)) return; snap("leg" + i + e.target.type);
+  if (e.target.type === "color") st.legend[i][1] = e.target.value; else { st.legend[i][0] = e.target.value; renderSecs(); } update(); });
+leg.addEventListener("click", e => { const b = e.target.closest(".x"); if (!b) return; snap(); const d = +b.dataset.i;
+  st.legend.splice(d, 1); S.sections = S.sections.filter(q => q.idx !== d).map(q => (q.idx > d ? (q.idx--, q) : q));
+  renderLegend(); renderSecs(); update(); });
+$("addLeg").onclick = () => { snap(); st.legend.push(["새 섹션", "#A0D468"]); renderLegend(); renderSecs(); update(); };
+const onNum = arr => e => { const t = e.target, i = +t.dataset.i, f = t.dataset.f; if (isNaN(i) || !f) return;
+  const v = parseInt(t.value, 10); if (isNaN(v)) return; snap(f + i); arr()[i][f] = v; update(); };
+$("secList").addEventListener("input", onNum(() => S.sections));
+$("secList").addEventListener("change", e => { if (e.target.tagName === "SELECT") { snap(); S.sections[+e.target.dataset.i].idx = +e.target.value; update(); } });
+$("secList").addEventListener("click", e => { const b = e.target.closest(".x"); if (!b) return; snap(); S.sections.splice(+b.dataset.i, 1); renderSecs(); update(); });
+$("rowList").addEventListener("input", onNum(() => S.rowBars));
+$("rowList").addEventListener("click", e => { const b = e.target.closest(".x"); if (!b) return; snap(); S.rowBars.splice(+b.dataset.i, 1); renderRows(); update(); });
+$("addSec").onclick = () => { snap(); const last = S.sections[S.sections.length - 1], from = last ? last.to + 1 : 1;
+  S.sections.push({idx: Math.max(0, last ? Math.min(last.idx + 1, st.legend.length - 1) : 0), from, to: from + 7}); renderSecs(); update(); };
+$("addRow").onclick = () => { snap(); const last = S.rowBars[S.rowBars.length - 1];
+  S.rowBars.push({row: last ? Math.min(last.row + 1, st.rows) : 1, bars: 5}); renderRows(); update(); };
+
+$("tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return;
+  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll(".pn").forEach(p => p.hidden = p.dataset.panel !== b.dataset.tab); });
+
+/* ---------- songs ---------- */
+function openSong(s) { S = s; st = S.layout; db.cur = S.id; undoStack.length = 0; $("undo").disabled = true; snapTag = null; closeEd(); syncUI(); update(); }
+$("songList").addEventListener("click", e => { const b = e.target.closest(".song"); if (!b) return; const s = db.songs.find(x => x.id === b.dataset.id); if (s) { openSong(s); toast(`'${s.title || "제목 없는 곡"}' 열었어요`); } });
+$("newSong").onclick = () => { const lay = clone(st); const s = newSong(lay); db.songs.push(s); openSong(s); toast("새 곡을 만들었어요"); };
+$("dupSong").onclick = () => { const s = clone(S); s.id = uid(); s.title = (S.title || "제목 없는 곡") + " 복사본"; db.songs.push(s); openSong(s); toast("복제했어요"); };
+$("delSong").onclick = e => twoTap(e.currentTarget, "이 곡 삭제", () => {
+  db.songs = db.songs.filter(s => s.id !== S.id);
+  if (!db.songs.length) db.songs.push(newSong(st));
+  openSong(db.songs.sort((a, b) => b.updated - a.updated)[0]); toast("삭제했어요"); });
+
+/* ---------- export ---------- */
+function exportCanvas() { const [W, H] = dims(), s = 300 / 25.4, c = document.createElement("canvas");
+  c.width = Math.round(W * s); c.height = Math.round(H * s); draw(c.getContext("2d"), s, 0); return {c, W, H}; }
+const toBlob = (c, type, q) => new Promise(r => c.toBlob(r, type, q));
+async function buildPdf() {
+  const {c, W, H} = exportCanvas();
+  const jpg = new Uint8Array(await (await toBlob(c, "image/jpeg", 0.93)).arrayBuffer());
+  const wpt = (W / 25.4 * 72).toFixed(2), hpt = (H / 25.4 * 72).toFixed(2), enc = new TextEncoder(), parts = [], offs = [];
+  let len = 0;
+  const put = x => { const b = typeof x === "string" ? enc.encode(x) : x; parts.push(b); len += b.length; };
+  const obj = (n, body) => { offs[n] = len; put(`${n} 0 obj\n${body}\nendobj\n`); };
+  put("%PDF-1.4\n");
+  obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  obj(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+  obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${wpt} ${hpt}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`);
+  offs[4] = len;
+  put(`4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${c.width} /Height ${c.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`);
+  put(jpg); put("\nendstream\nendobj\n");
+  const cs = `q ${wpt} 0 0 ${hpt} 0 0 cm /Im0 Do Q`;
+  obj(5, `<< /Length ${cs.length} >>\nstream\n${cs}\nendstream`);
+  const x = len;
+  put(`xref\n0 6\n0000000000 65535 f \n${[1, 2, 3, 4, 5].map(n => String(offs[n]).padStart(10, "0") + " 00000 n \n").join("")}`);
+  put(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${x}\n%%EOF`);
+  return new Blob(parts, {type: "application/pdf"});
+}
+const fname = ext => `${(S.title || "코드표").replace(/[\\/:*?"<>|]/g, "_")}.${ext}`;
+let dl = null;
+async function saveFile(name, data) {
+  if (!dl && window.claude && window.claude.use) { try { dl = await window.claude.use("downloads"); } catch (e) {} }
+  if (dl) { await dl.save({filename: name, data}); return; }
+  const a = document.createElement("a"), u = URL.createObjectURL(data);
+  a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000);
+}
+async function doSave(kind) {
+  toast("파일을 만드는 중…");
+  try { const data = kind === "pdf" ? await buildPdf() : await toBlob(exportCanvas().c, "image/png");
+    await saveFile(fname(kind), data); toast("저장했어요. 노트인에서 불러오세요."); }
+  catch (e) { toast(e && e.code === "declined" ? "저장을 취소했어요" : "저장하지 못했어요. 다시 시도해 주세요."); }
+}
+$("pdf").onclick = () => doSave("pdf");
+$("png").onclick = () => doSave("png");
+$("exportJson").onclick = async () => { try { await saveFile(`코드표_백업_${new Date().toISOString().slice(0, 10)}.json`, new Blob([JSON.stringify({app: "chordchart", v: 1, songs: db.songs})], {type: "application/json"})); toast("백업 파일을 저장했어요"); } catch (e) { toast("백업하지 못했어요"); } };
+$("importJson").onchange = async e => { const f = e.target.files[0]; if (!f) return;
+  try { const o = JSON.parse(await f.text()); if (!o || !Array.isArray(o.songs)) throw 0;
+    let n = 0; o.songs.forEach(s => { if (!s || !s.layout) return; s.layout = Object.assign(clone(LAYOUT), s.layout);
+      s.info = s.info || {}; s.chords = s.chords || {}; s.sections = s.sections || []; s.rowBars = s.rowBars || [];
+      const i = db.songs.findIndex(x => x.id === s.id); if (i >= 0) db.songs[i] = s; else db.songs.push(s); n++; });
+    openSong(db.songs.find(x => x.id === S.id) || db.songs[0]); toast(`${n}곡을 불러왔어요`);
+  } catch (err) { toast("백업 파일을 읽지 못했어요"); }
+  e.target.value = ""; };
+
+/* ---------- install / offline ---------- */
+let deferred = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferred = e; $("install").hidden = false; });
+$("install").onclick = async () => { if (!deferred) return; deferred.prompt(); try { await deferred.userChoice; } catch (e) {} deferred = null; $("install").hidden = true; };
+window.addEventListener("appinstalled", () => { $("install").hidden = true; toast("앱을 설치했어요"); });
+if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !window.claude) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+syncUI(); render();
+new ResizeObserver(() => render()).observe(cv.parentElement);
+}
+</script>
+</body>
+</html>
