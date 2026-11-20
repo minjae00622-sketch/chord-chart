@@ -164,7 +164,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
         </div>
         <div class="sec">
           <h2>코드 입력</h2>
-          <p class="hint">악보의 마디를 누르면 입력창이 열려요. 한 마디에 코드가 여러 개면 띄어 쓰세요 (예: Dm7 G7). 앞 마디와 같으면 % 또는 -. 같은 코드를 연달아 쓰면(C D Em Em) 길이를 알아서 C·D-Em으로 보여줘요. 직접 C.D-Em처럼 써도 돼요. 텐션은 x² 버튼(^) 뒤에 쓰면 위첨자로 올라가요 (예: C7^b9,13). 도돌이표와 1·2번 괄호도 입력창에서 마디마다 정해요. 같은 괄호를 연달아 붙이면 하나로 이어져요.</p>
+          <p class="hint">악보의 마디를 누르면 입력창이 열려요. 한 마디에 코드가 여러 개면 띄어 쓰세요 (예: Dm7 G7). 앞 마디와 같으면 % 또는 -. 같은 코드를 연달아 쓰면(C D Em Em) 그만큼 칸을 넓게 차지해요. 점(·)과 -는 C.D-Em처럼 직접 쓰면 그대로 찍혀요. 텐션은 x² 버튼(^) 뒤에 쓰면 위첨자로 올라가요 (예: C7^b9,13). 도돌이표와 1·2번 괄호도 입력창에서 마디마다 정해요. 같은 괄호를 연달아 붙이면 하나로 이어져요.</p>
           <div class="chips"><button class="chip" id="startInput">1마디부터 입력</button><button class="chip warn" id="clearAll">코드 모두 지우기</button></div>
           <label class="tog"><input type="checkbox" data-k="printChords">코드를 악보에 표시</label>
         </div>
@@ -258,12 +258,13 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 {
 /* ---------- data ---------- */
 const LEGEND = [["인트로·아웃트로","#FFB86B","Int/Out"],["벌스","#8EC5FF","V"],["프리코러스","#FFE066","Pre"],["코러스","#FF8A80","Ch"],
-  ["인터루드","#7EDCC4","Inter"],["브릿지","#C39BFF","Br"],["포스트코러스","#FF9ECF","Post"],["솔로","#2F9E44","Solo"]];
+  ["인터루드","#5CCFE6","Inter"],["브릿지","#C39BFF","Br"],["포스트코러스","#FF9ECF","Post"],["솔로","#7CC66B","Solo"]];
 const ABBR = {"인트로·아웃트로":"Int/Out","인트로":"Int","아웃트로":"Out","벌스":"V","프리코러스":"Pre","코러스":"Ch","인터루드":"Inter","브릿지":"Br"};
 const capAbbr = t => String(t || "").split("/").map(x => x.trim()).map(x => x ? x[0].toUpperCase() + x.slice(1) : x).join("/");
 const OLD_FIELDS = ["키, 템포, 스타일, 폼", "템포, 키, 카포, 폼", "템포, 키, 카포, 송폼"], NEW_FIELDS = "키, 카포, 템포, 송폼";
-const SPARE = {"예비 1": ["포스트코러스", "#FF9ECF", "Post"], "예비 2": ["솔로", "#2F9E44", "Solo"]};
-const fixLegend = lay => { lay.legend = (lay.legend || []).map(l => SPARE[l[0]] && !l[2] ? SPARE[l[0]].slice() : [l[0], l[1], capAbbr(l[2] !== undefined ? l[2] : (ABBR[l[0]] || ""))]);
+const SPARE = {"예비 1": ["포스트코러스", "#FF9ECF", "Post"], "예비 2": ["솔로", "#7CC66B", "Solo"]};
+const RECOLOR = {"#2F9E44": "#7CC66B", "#7EDCC4": "#5CCFE6"};
+const fixLegend = lay => { lay.legend = (lay.legend || []).map(l => SPARE[l[0]] && !l[2] ? SPARE[l[0]].slice() : [l[0], RECOLOR[String(l[1]).toUpperCase()] || l[1], capAbbr(l[2] !== undefined ? l[2] : (ABBR[l[0]] || ""))]);
   if (OLD_FIELDS.includes(lay.fields)) { lay.fields = NEW_FIELDS; return true; } };
 const fixSong = s => { if (fixLegend(s.layout) && s.info["폼"] && !s.info["송폼"]) { s.info["송폼"] = s.info["폼"]; delete s.info["폼"]; } };
 const subsOf = l => capAbbr(l[2]).split("/").map(t => t.trim()).filter(Boolean);
@@ -472,16 +473,11 @@ function parseChord(t) {
 /* a token like "C.D-Em" becomes chord / separator segments */
 function segsOf(t) { return t.split(/([.·]|-(?=[A-G]))/).filter(p => p !== "").map(p =>
   p === "." || p === "·" ? {sep: "·"} : p === "-" ? {sep: "-"} : {c: parseChord(p)}); }
-function lineOf(list) {
-  /* merge repeated chords ("C D Em Em") and join with · or - when lengths differ */
+function groupsOf(list) {
+  /* consecutive repeats of one chord ("C D Em Em") take that many shares of the bar */
   const g = [];
   list.forEach(t => { const L = g[g.length - 1]; if (L && L.t === t && t !== "%" && t !== "-") L.n++; else g.push({t, n: 1}); });
-  const eq = g.every(x => x.n === g[0].n);
-  if (eq && g.length === list.length) return null;
-  if (eq) return g.map(x => segsOf(x.t));
-  const mn = Math.min(...g.map(x => x.n)), out = [];
-  g.forEach((x, i) => { if (i) out.push({sep: g[i - 1].n === mn && x.n === mn ? "·" : "-"}); out.push(...segsOf(x.t)); });
-  return [out];
+  return g;
 }
 function segW(ctx, sg, sz) {
   if (sg.sep) return sz * (sg.sep === "·" ? .42 : .62);
@@ -505,17 +501,28 @@ function drawSeg(ctx, sg, x, base, sz) {
 }
 function drawChords(ctx, list, x, y, w, h, font) {
   const single = t => t === "%" || t === "-";
-  const merged = lineOf(list);
-  const lines = merged || list.map(t => single(t) ? [{c: {root: t === "-" ? "–" : "%", ext: "", ten: "", bass: ""}}] : segsOf(t));
-  const n = lines.length, slot = w / n;
+  const g = groupsOf(list), tot = g.reduce((a, q) => a + q.n, 0);
+  const lines = g.map(q => single(q.t) ? [{c: {root: q.t === "-" ? "–" : "%", ext: "", ten: "", bass: ""}}] : segsOf(q.t));
   let size = Math.min(h * 0.42, 6.2);
   const lw = (ln, sz) => ln.reduce((a, sg) => a + segW(ctx, sg, sz), 0);
-  lines.forEach(ln => { while (lw(ln, size) > slot - 2.4 && size > 2.2) size -= .2; });
+  const pad = sw => Math.min(1.6, sw * .12);
+  lines.forEach((ln, i) => { const sw = w * g[i].n / tot; while (lw(ln, size) > sw - pad(sw) - .6 && size > 2.2) size -= .2; });
+  const full = Math.min(h * 0.42, 6.2);
+  if (lines.length > 2 && size < full * .7) {
+    /* crowded bar: pack chords one after another instead of fixed shares */
+    let sz = full; const gapOf = z => z * .45, tw = z => lines.reduce((a, ln) => a + lw(ln, z), 0) + gapOf(z) * (lines.length - 1);
+    while (tw(sz) > w - 1.6 && sz > 2) sz -= .1;
+    const b2 = y + h * 0.5 + sz * 0.36; let cx = x + .8;
+    lines.forEach(ln => { ln.forEach(sg => { drawSeg(ctx, sg, cx, b2, sz); cx += segW(ctx, sg, sz); }); cx += gapOf(sz); });
+    return;
+  }
   const base = y + h * 0.5 + size * 0.36;
+  let sx = x;
   lines.forEach((ln, i) => {
-    const centre = !merged && single(list[i]);
-    let cx = x + i * slot + (centre ? slot / 2 - lw(ln, size) / 2 : 1.6);
+    const sw = w * g[i].n / tot;
+    let cx = sx + (single(g[i].t) ? sw / 2 - lw(ln, size) / 2 : pad(sw));
     ln.forEach(sg => { drawSeg(ctx, sg, cx, base, size); cx += segW(ctx, sg, size); });
+    sx += sw;
   });
 }
 
