@@ -42,6 +42,7 @@ canvas{display:block;width:100%;height:auto;border-radius:6px;cursor:pointer}
 .pad button{height:42px;border:1px solid var(--line);border-radius:9px;background:var(--soft);cursor:pointer;font-size:15px;font-weight:600}
 .pad button.n{background:var(--panel);font-size:17px}
 .pad button.w2{grid-column:span 2}
+.pad button.t{background:var(--acc);color:var(--accInk);border-color:var(--acc)}
 .pad button:active{background:var(--acc);color:var(--accInk)}
 .edf{display:flex;gap:8px;margin-top:8px}
 .edf button{flex:1;height:44px;border-radius:10px;border:1px solid var(--line);background:transparent;cursor:pointer;font-weight:500}
@@ -157,7 +158,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
         </div>
         <div class="sec">
           <h2>코드 입력</h2>
-          <p class="hint">악보의 마디를 누르면 입력창이 열려요. 한 마디에 코드가 여러 개면 띄어 쓰세요 (예: Dm7 G7). 앞 마디 반복은 %. 도돌이표와 1·2번 괄호도 입력창에서 마디마다 정해요. 같은 괄호를 연달아 붙이면 하나로 이어져요.</p>
+          <p class="hint">악보의 마디를 누르면 입력창이 열려요. 한 마디에 코드가 여러 개면 띄어 쓰세요 (예: Dm7 G7). 앞 마디와 같으면 % 또는 -. 같은 코드를 연달아 쓰면(C D Em Em) 길이를 알아서 C·D-Em으로 보여줘요. 직접 C.D-Em처럼 써도 돼요. 텐션은 x² 버튼(^) 뒤에 쓰면 위첨자로 올라가요 (예: C7^b9,13). 도돌이표와 1·2번 괄호도 입력창에서 마디마다 정해요. 같은 괄호를 연달아 붙이면 하나로 이어져요.</p>
           <div class="chips"><button class="chip" id="startInput">1마디부터 입력</button><button class="chip warn" id="clearAll">코드 모두 지우기</button></div>
           <label class="tog"><input type="checkbox" data-k="printChords">코드를 악보에 표시</label>
         </div>
@@ -207,7 +208,6 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
             <label class="tog"><input type="checkbox" data-k="labelGray">섹션 칸 회색</label>
             <label class="tog"><input type="checkbox" data-k="half">반 마디 점선</label>
             <label class="tog"><input type="checkbox" data-k="numbers">마디 번호</label>
-            <label class="tog"><input type="checkbox" data-k="finalBar">끝 겹세로줄</label>
             <label class="tog"><input type="checkbox" data-k="showMeter">박자표 표시</label>
           </div>
         </div>
@@ -302,7 +302,8 @@ const SH = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"], FL = ["C","Db
 const pc = n => (NAT[n[0]] + (n[1] === "#" ? 1 : n[1] === "b" ? -1 : 0) + 12) % 12;
 const tn = (n, d) => (st.flats === "1" ? FL : SH)[(pc(n) + d + 120) % 12];
 const RX = /^([A-G][#b]?)([^/]*)(?:\/([A-G][#b]?))?$/;
-function trTok(t, d) { const m = t.match(RX); if (!m) return t; return tn(m[1], d) + m[2] + (m[3] ? "/" + tn(m[3], d) : ""); }
+function trOne(t, d) { const m = t.match(/^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/); if (!m) return t; return tn(m[1], d) + m[2] + (m[3] ? "/" + tn(m[3], d) : ""); }
+function trTok(t, d) { return t.split(/([.·]|-(?=[A-G]|$))/).map((p, i) => i % 2 ? p : trOne(p, d)).join(""); }
 const pretty = t => t.replace(/#/g, "♯").replace(/(^|[^A-Za-z])b(?=\d)|(?<=[A-G])b/g, (m, p) => (p || "") + "♭");
 const toks = s => (s || "").trim().split(/\s+/).filter(Boolean);
 const MRX = /^\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*$/;
@@ -351,18 +352,17 @@ function draw(ctx, s, selBar) {
   const items = st.legend.filter(l => l[0].trim());
   if (st.legendOn && items.length) {
     font(6.5);
-    const abw = a => { if (!a) return 0; font(6.5, 700); const w = ctx.measureText(a).width; font(6.5); return w + 1.4; };
-    const ws = items.map(([t, , a]) => 5 + ctx.measureText(t).width + abw(a)), rows = [];
+    const lab = it => it[2] ? capAbbr(it[2]) : it[0];
+    font(7, 700); const ws = items.map(it => 5 + ctx.measureText(lab(it)).width), rows = [];
     let cur = [], tw = 0;
-    ws.forEach((w, i) => { if (cur.length && tw + w + 5 > R - L) { rows.push(cur); cur = []; tw = 0; } tw += w + (cur.length ? 5 : 0); cur.push(i); });
+    ws.forEach((w, i) => { if (cur.length && tw + w + 7 > R - L) { rows.push(cur); cur = []; tw = 0; } tw += w + (cur.length ? 5 : 0); cur.push(i); });
     if (cur.length) rows.push(cur);
     rows.forEach(r => { const sum = r.reduce((a, i) => a + ws[i], 0);
-      const gap = rows.length === 1 && r.length > 1 ? (R - L - sum) / (r.length - 1) : 5;
+      const gap = 7;
       let x = L; const cy = y + 3.5;
       r.forEach(i => { ctx.fillStyle = items[i][1]; ctx.beginPath();
         ctx.roundRect ? ctx.roundRect(x, cy - 1.8, 3.6, 3.6, .7) : ctx.rect(x, cy - 1.8, 3.6, 3.6); ctx.fill();
-        text(x + 5, cy + 1.1, items[i][0], 6.5, "#555");
-        if (items[i][2]) { font(6.5); const nw = ctx.measureText(items[i][0]).width; text(x + 5 + nw + 1.4, cy + 1.1, capAbbr(items[i][2]), 6.5, "#222", 700); font(6.5); }
+        text(x + 5, cy + 1.2, lab(items[i]), 7, "#222", 700);
         x += ws[i] + gap; });
       y += 6.5; });
     y += 2;
@@ -416,7 +416,6 @@ function draw(ctx, s, selBar) {
   line(L, GB, R, GB, INK, 1.2); line(L, GY, L, GB, INK, 1.2);
   if (LAB) line(L + LAB, GY, L + LAB, GB, INK, .8);
   line(R, GY, R, GB, INK, 1.2);
-  if (st.finalBar) line(R - 1.2, GY, R - 1.2, GB, INK, .5);
   if (memoOn) { const cols = +st.memoCols, cw = (R - L - 8 * (cols - 1)) / cols;
     for (let c = 0; c < cols; c++) { const cx = L + c * (cw + 8);
       for (let i = 0; i < st.memo; i++) { const yy = GB + 10 + i * 7; line(cx, yy, cx + cw, yy, LIGHT, .5); } } }
@@ -450,24 +449,62 @@ function drawMeter(ctx, m, x, y, h) {
   ctx.textAlign = "start";
   return w + 2;
 }
+function parseChord(t) {
+  let bass = "", ten = "", m = t.match(/\/([A-G][#b]?)$/);
+  if (m) { bass = m[1]; t = t.slice(0, -m[0].length); }
+  const i = t.indexOf("^"); if (i >= 0) { ten = t.slice(i + 1).replace(/^\((.*)\)$/, "$1"); t = t.slice(0, i); }
+  m = t.match(/^([A-G][#b]?)(.*)$/);
+  return m ? {root: pretty(m[1]), ext: pretty(m[2]), ten: pretty(ten), bass: bass ? "/" + pretty(bass) : ""} : {root: pretty(t), ext: "", ten: pretty(ten), bass: ""};
+}
+/* a token like "C.D-Em" becomes chord / separator segments */
+function segsOf(t) { return t.split(/([.·]|-(?=[A-G]))/).filter(p => p !== "").map(p =>
+  p === "." || p === "·" ? {sep: "·"} : p === "-" ? {sep: "-"} : {c: parseChord(p)}); }
+function lineOf(list) {
+  /* merge repeated chords ("C D Em Em") and join with · or - when lengths differ */
+  const g = [];
+  list.forEach(t => { const L = g[g.length - 1]; if (L && L.t === t && t !== "%" && t !== "-") L.n++; else g.push({t, n: 1}); });
+  const eq = g.every(x => x.n === g[0].n);
+  if (eq && g.length === list.length) return null;
+  if (eq) return g.map(x => segsOf(x.t));
+  const mn = Math.min(...g.map(x => x.n)), out = [];
+  g.forEach((x, i) => { if (i) out.push({sep: g[i - 1].n === mn && x.n === mn ? "·" : "-"}); out.push(...segsOf(x.t)); });
+  return [out];
+}
+function segW(ctx, sg, sz) {
+  if (sg.sep) return sz * (sg.sep === "·" ? .42 : .62);
+  const c = sg.c; ctx.font = `600 ${sz}px ${FONT}`; let w = ctx.measureText(c.root[0]).width;
+  if (c.root.length > 1) { ctx.font = `600 ${sz * .72}px ${FONT}`; w += ctx.measureText(c.root.slice(1)).width - sz * .2; }
+  w += .3; ctx.font = `500 ${sz * .62}px ${FONT}`;
+  const ew = ctx.measureText(c.ext).width, bw = ctx.measureText(c.bass).width;
+  ctx.font = `500 ${sz * .5}px ${FONT}`; const tw = c.ten ? ctx.measureText(c.ten).width + .2 : 0;
+  return w + ew + Math.max(tw, bw) + .2;
+}
+function drawSeg(ctx, sg, x, base, sz) {
+  ctx.fillStyle = "#151515"; ctx.strokeStyle = "#151515"; ctx.textBaseline = "alphabetic";
+  if (sg.sep === "·") { ctx.beginPath(); ctx.arc(x + sz * .21, base - sz * .34, sz * .075, 0, Math.PI * 2); ctx.fill(); return; }
+  if (sg.sep === "-") { ctx.beginPath(); ctx.lineWidth = sz * .07; ctx.moveTo(x + sz * .1, base - sz * .33); ctx.lineTo(x + sz * .52, base - sz * .33); ctx.stroke(); return; }
+  const c = sg.c; let cx = x;
+  ctx.font = `600 ${sz}px ${FONT}`; ctx.fillText(c.root[0], cx, base); cx += ctx.measureText(c.root[0]).width;
+  if (c.root.length > 1) { ctx.font = `600 ${sz * .72}px ${FONT}`; ctx.fillText(c.root.slice(1), cx - sz * .08, base - sz * .22); cx += ctx.measureText(c.root.slice(1)).width - sz * .2; }
+  cx += .3; ctx.font = `500 ${sz * .62}px ${FONT}`;
+  if (c.ext) ctx.fillText(c.ext, cx, base - sz * .32);
+  const ew = c.ext ? ctx.measureText(c.ext).width : 0;
+  if (c.bass) ctx.fillText(c.bass, cx + ew + .2, base);
+  if (c.ten) { ctx.font = `500 ${sz * .5}px ${FONT}`; ctx.fillText(c.ten, cx + ew + .2, base - sz * .62); }
+}
 function drawChords(ctx, list, x, y, w, h, font) {
-  const n = list.length, slot = w / n;
+  const single = t => t === "%" || t === "-";
+  const merged = lineOf(list);
+  const lines = merged || list.map(t => single(t) ? [{c: {root: t === "-" ? "–" : "%", ext: "", ten: "", bass: ""}}] : segsOf(t));
+  const n = lines.length, slot = w / n;
   let size = Math.min(h * 0.42, 6.2);
-  const parts = list.map(t => { if (t === "%") return {root: "%", ext: "", bass: ""};
-    const m = t.match(RX); return m ? {root: pretty(m[1]), ext: pretty(m[2]), bass: m[3] ? "/" + pretty(m[3]) : ""} : {root: pretty(t), ext: "", bass: ""}; });
-  const meas = (p, sz) => { ctx.font = `600 ${sz}px ${FONT}`; let a = ctx.measureText(p.root).width;
-    ctx.font = `500 ${sz * .62}px ${FONT}`; return a + ctx.measureText(p.ext + p.bass).width + .3; };
-  parts.forEach(p => { while (meas(p, size) > slot - 2.4 && size > 2.2) size -= .2; });
+  const lw = (ln, sz) => ln.reduce((a, sg) => a + segW(ctx, sg, sz), 0);
+  lines.forEach(ln => { while (lw(ln, size) > slot - 2.4 && size > 2.2) size -= .2; });
   const base = y + h * 0.5 + size * 0.36;
-  parts.forEach((p, i) => {
-    let cx = x + i * slot + (p.root === "%" ? slot / 2 - meas(p, size) / 2 : 1.6);
-    ctx.fillStyle = "#151515"; ctx.textBaseline = "alphabetic";
-    ctx.font = `600 ${size}px ${FONT}`; ctx.fillText(p.root[0], cx, base); cx += ctx.measureText(p.root[0]).width;
-    if (p.root.length > 1) { ctx.font = `600 ${size * .72}px ${FONT}`; ctx.fillText(p.root.slice(1), cx - size * .04, base - size * .22); cx += ctx.measureText(p.root.slice(1)).width - size * .06; }
-    cx += .3;
-    ctx.font = `500 ${size * .62}px ${FONT}`;
-    if (p.ext) { ctx.fillText(p.ext, cx, base - size * .32); }
-    if (p.bass) { const ew = p.ext ? ctx.measureText(p.ext).width : 0; ctx.fillText(p.bass, cx + ew, base); }
+  lines.forEach((ln, i) => {
+    const centre = !merged && single(list[i]);
+    let cx = x + i * slot + (centre ? slot / 2 - lw(ln, size) / 2 : 1.6);
+    ln.forEach(sg => { drawSeg(ctx, sg, cx, base, size); cx += segW(ctx, sg, size); });
   });
 }
 
@@ -521,8 +558,9 @@ $("close").onclick = closeEd;
 $("clearBar").onclick = () => { cin.value = ""; setBar(""); cin.focus(); };
 $("kbd").onchange = e => { db.kbd = e.target.checked; persist(); cin.inputMode = db.kbd ? "text" : "none"; cin.blur(); cin.focus(); };
 const PAD = [["C","n"],["D","n"],["E","n"],["F","n"],["G","n"],["A","n"],["B","n"],["b","♭"],
-  ["#","♯"],["m"],["7"],["maj7"],["m7"],["m7b5","ø"],["dim"],["sus4"],
-  ["6"],["9"],["11"],["13"],["alt"],["/"],["%"],["⌫","⌫"],[" ","띄어쓰기","w2"]];
+  ["#","♯"],["m"],["7"],["maj7"],["m7"],["m7b5","ø"],["dim"],["aug"],
+  ["sus4"],["6"],["9"],["11"],["13"],["alt"],["/"],["^","x² 텐션","t"],
+  [".","·"],["-","-"],["%"],[",",","],["⌫","⌫"],[" ","띄어쓰기","w2"]];
 $("pad").innerHTML = PAD.map(([v, l, c]) => `<button type="button" data-v="${esc(v)}" class="${l === "n" ? "n" : c || ""}">${esc(l && l !== "n" ? l : v)}</button>`).join("");
 $("pad").addEventListener("pointerdown", e => e.preventDefault());
 $("pad").addEventListener("click", e => {
@@ -530,7 +568,7 @@ $("pad").addEventListener("click", e => {
   const v = b.dataset.v, a = cin.selectionStart ?? cin.value.length, z = cin.selectionEnd ?? a;
   let s = cin.value, p;
   if (v === "⌫") { if (a !== z) { s = s.slice(0, a) + s.slice(z); p = a; } else if (a > 0) { s = s.slice(0, a - 1) + s.slice(a); p = a - 1; } else p = 0; }
-  else { const ins = /^[A-G]$/.test(v) && a > 0 && s[a - 1] !== " " && s[a - 1] !== "/" ? " " + v : v;
+  else { const ins = /^[A-G]$/.test(v) && a > 0 && !/[\s\/.\-·^(,]/.test(s[a - 1]) ? " " + v : v;
     s = s.slice(0, a) + ins + s.slice(z); p = a + ins.length; }
   cin.value = s; cin.focus({preventScroll: true});
   try { cin.setSelectionRange(p, p); } catch (e) {}
