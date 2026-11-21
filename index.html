@@ -573,25 +573,30 @@ function drawChords(ctx, list, x, y, w, h, font) {
   const lv = leavesOf(list), tot = lv.reduce((a, q) => a + q.share, 0), full = Math.min(h * 0.42, 6.2);
   const cw = (q, z) => segW(ctx, {c: q.c}, z), sw = (t, z) => t ? segW(ctx, {sep: t}, z) : 0;
   const pad = ww => Math.min(1.6, ww * .12);
-  let size = full;
-  lv.forEach((q, i) => { const ww = w * q.share / tot, nx = lv[i + 1] ? sw(lv[i + 1].sep, size) : 0;
-    while (cw(q, size) + nx > ww - pad(ww) - .4 && size > 2.2) size -= .2; });
-  if ((lv.length > 2 && size < full * .7) || (lv.length === 2 && size < full * .55)) {
-    /* crowded bar: pack chords one after another instead of fixed shares */
-    let sz = full; const gap = z => z * .45;
-    const tw = z => lv.reduce((a, q, i) => a + cw(q, z) + (q.sep ? sw(q.sep, z) : i ? gap(z) : 0), 0);
+  const timed = lv.some(q => q.sep);
+  /* each piece gets the biggest size that fits its own beat share (pieces of one "-" part share a size) */
+  /* a separator sits centred on the beat line, so each piece only gives up half of it */
+  const lead = (q, z) => q.sep ? sw(q.sep, z) / 2 + .15 : pad(w * q.share / tot);
+  lv.forEach((q, i) => { const ww = w * q.share / tot; let z = full;
+    const room = z2 => cw(q, z2) + lead(q, z2) + (lv[i + 1] ? sw(lv[i + 1].sep, z2) / 2 + .15 : 0) + .3;
+    while (room(z) > ww && z > 1.8) z -= .1; q.sz = z; });
+  let grp = 0; lv.forEach(q => { if (q.sep !== "·") grp++; q.g = grp; });
+  lv.forEach(q => { q.sz = Math.min(...lv.filter(o => o.g === q.g).map(o => o.sz)); });
+  let size = Math.min(...lv.map(q => q.sz));
+  if (!timed && lv.length > 2 && size < full * .7) {
+    /* many plain chords in one bar: pack them one after another so they stay readable */
+    let sz = full; const gap = z => z * .45, tw = z => lv.reduce((a, q, i) => a + cw(q, z) + (i ? gap(z) : 0), 0);
     while (tw(sz) > w - 1.6 && sz > 2) sz -= .1;
     const b2 = y + h * 0.5 + sz * 0.36; let cx = x + .8;
-    lv.forEach((q, i) => { if (q.sep) { drawSeg(ctx, {sep: q.sep}, cx, b2, sz); cx += sw(q.sep, sz); } else if (i) cx += gap(sz);
-      drawSeg(ctx, {c: q.c}, cx, b2, sz); cx += cw(q, sz); });
+    lv.forEach((q, i) => { if (i) cx += gap(sz); drawSeg(ctx, {c: q.c}, cx, b2, sz); cx += cw(q, sz); });
     return;
   }
-  const base = y + h * 0.5 + size * 0.36;
+  if (!timed) lv.forEach(q => { q.sz = size; });
   let sx = x;
   lv.forEach(q => {
-    const ww = w * q.share / tot;
-    if (q.sep) drawSeg(ctx, {sep: q.sep}, sx - sw(q.sep, size) - .1, base, size);
-    drawSeg(ctx, {c: q.c}, q.centre ? sx + ww / 2 - cw(q, size) / 2 : sx + pad(ww), base, size);
+    const ww = w * q.share / tot, z = q.sz, base = y + h * 0.5 + z * 0.36;
+    if (q.sep) drawSeg(ctx, {sep: q.sep}, sx - sw(q.sep, z) / 2, base, z);
+    drawSeg(ctx, {c: q.c}, q.centre ? sx + ww / 2 - cw(q, z) / 2 : sx + lead(q, z), base, z);
     sx += ww;
   });
 }
