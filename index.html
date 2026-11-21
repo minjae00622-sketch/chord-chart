@@ -557,30 +557,42 @@ function drawSeg(ctx, sg, x, base, sz) {
   if (c.ten) { ctx.font = `500 ${sz * .55}px ${FONT}`; ctx.fillText(c.ten, cx + .3, base - sz * .5); cx += ctx.measureText(c.ten).width + .3; }
   if (c.bass) { ctx.font = `500 ${sz * .8}px ${FONT}`; ctx.fillText(c.bass, cx + .2, base); }
 }
+/* split a bar into timed pieces: spaces = equal shares (repeats add shares),
+   "-" splits a share into equal halves, "." splits those again: C-D = C C D D, C.D-Em = C D Em Em */
+function leavesOf(list) {
+  const out = [];
+  groupsOf(list).forEach(g => {
+    if (g.t === "%" || g.t === "-") { out.push({share: g.n, centre: true, c: {root: g.t === "-" ? "–" : "%", ext: "", ten: "", bass: ""}}); return; }
+    const parts = g.t.split(/-(?=[A-G])/);
+    parts.forEach((pt, pi) => { const subs = pt.split(/[.·](?=[A-G])/);
+      subs.forEach((sb, si) => out.push({share: g.n / parts.length / subs.length, c: parseChord(sb), sep: si ? "·" : pi ? "-" : null})); });
+  });
+  return out;
+}
 function drawChords(ctx, list, x, y, w, h, font) {
-  const single = t => t === "%" || t === "-";
-  const g = groupsOf(list), tot = g.reduce((a, q) => a + q.n, 0);
-  const lines = g.map(q => single(q.t) ? [{c: {root: q.t === "-" ? "–" : "%", ext: "", ten: "", bass: ""}}] : segsOf(q.t));
-  let size = Math.min(h * 0.42, 6.2);
-  const lw = (ln, sz) => ln.reduce((a, sg) => a + segW(ctx, sg, sz), 0);
-  const pad = sw => Math.min(1.6, sw * .12);
-  lines.forEach((ln, i) => { const sw = w * g[i].n / tot; while (lw(ln, size) > sw - pad(sw) - .6 && size > 2.2) size -= .2; });
-  const full = Math.min(h * 0.42, 6.2);
-  if (lines.length > 2 && size < full * .7) {
+  const lv = leavesOf(list), tot = lv.reduce((a, q) => a + q.share, 0), full = Math.min(h * 0.42, 6.2);
+  const cw = (q, z) => segW(ctx, {c: q.c}, z), sw = (t, z) => t ? segW(ctx, {sep: t}, z) : 0;
+  const pad = ww => Math.min(1.6, ww * .12);
+  let size = full;
+  lv.forEach((q, i) => { const ww = w * q.share / tot, nx = lv[i + 1] ? sw(lv[i + 1].sep, size) : 0;
+    while (cw(q, size) + nx > ww - pad(ww) - .4 && size > 2.2) size -= .2; });
+  if ((lv.length > 2 && size < full * .7) || (lv.length === 2 && size < full * .55)) {
     /* crowded bar: pack chords one after another instead of fixed shares */
-    let sz = full; const gapOf = z => z * .45, tw = z => lines.reduce((a, ln) => a + lw(ln, z), 0) + gapOf(z) * (lines.length - 1);
+    let sz = full; const gap = z => z * .45;
+    const tw = z => lv.reduce((a, q, i) => a + cw(q, z) + (q.sep ? sw(q.sep, z) : i ? gap(z) : 0), 0);
     while (tw(sz) > w - 1.6 && sz > 2) sz -= .1;
     const b2 = y + h * 0.5 + sz * 0.36; let cx = x + .8;
-    lines.forEach(ln => { ln.forEach(sg => { drawSeg(ctx, sg, cx, b2, sz); cx += segW(ctx, sg, sz); }); cx += gapOf(sz); });
+    lv.forEach((q, i) => { if (q.sep) { drawSeg(ctx, {sep: q.sep}, cx, b2, sz); cx += sw(q.sep, sz); } else if (i) cx += gap(sz);
+      drawSeg(ctx, {c: q.c}, cx, b2, sz); cx += cw(q, sz); });
     return;
   }
   const base = y + h * 0.5 + size * 0.36;
   let sx = x;
-  lines.forEach((ln, i) => {
-    const sw = w * g[i].n / tot;
-    let cx = sx + (single(g[i].t) ? sw / 2 - lw(ln, size) / 2 : pad(sw));
-    ln.forEach(sg => { drawSeg(ctx, sg, cx, base, size); cx += segW(ctx, sg, size); });
-    sx += sw;
+  lv.forEach(q => {
+    const ww = w * q.share / tot;
+    if (q.sep) drawSeg(ctx, {sep: q.sep}, sx - sw(q.sep, size) - .1, base, size);
+    drawSeg(ctx, {c: q.c}, q.centre ? sx + ww / 2 - cw(q, size) / 2 : sx + pad(ww), base, size);
+    sx += ww;
   });
 }
 
