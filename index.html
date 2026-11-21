@@ -351,12 +351,12 @@ $("undo").onclick = () => {
 /* ---------- chords ---------- */
 const NAT = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
 const SH = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"], FL = ["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"];
-const pc = n => (NAT[n[0]] + (n[1] === "#" ? 1 : n[1] === "b" ? -1 : 0) + 12) % 12;
+const pc = n => (NAT[n[0]] + [...n.slice(1)].reduce((a, c) => a + (c === "#" ? 1 : c === "b" ? -1 : 0), 0) + 24) % 12;
 const tn = (n, d) => (st.flats === "1" ? FL : SH)[(pc(n) + d + 120) % 12];
 const RX = /^([A-G][#b]?)([^/]*)(?:\/([A-G][#b]?))?$/;
-function trOne(t, d) { if (!/^[A-G]/.test(t)) return t; return t.replace(/^([A-G][#b]?)/, r => tn(r, d)).replace(/\/([A-G][#b]?)/, (m, b) => "/" + tn(b, d)); }
-function trTok(t, d) { return t.split(/([.·]|-(?=[A-G]|$))/).map((p, i) => i % 2 ? p : trOne(p, d)).join(""); }
-const pretty = t => t.replace(/#/g, "♯").replace(/(^|[^A-Za-z])b(?=\d)|(?<=[A-G])b/g, (m, p) => (p || "") + "♭");
+function trOne(t, d) { if (/^\/[A-G]/.test(t)) return t.replace(/\/([A-G](?:bb|##|b|#)?)/, (m, b) => "/" + tn(b, d)); if (!/^[A-G]/.test(t)) return t; return t.replace(/^([A-G](?:bb|##|b|#)?)/, r => tn(r, d)).replace(/\/([A-G](?:bb|##|b|#)?)/, (m, b) => "/" + tn(b, d)); }
+function trTok(t, d) { return t.split(/([.·]|-(?=[A-G\/]|$))/).map((p, i) => i % 2 ? p : trOne(p, d)).join(""); }
+const pretty = t => t.replace(/(?<=[A-G])bb/g, "♭♭").replace(/#/g, "♯").replace(/(^|[^A-Za-z])b(?=\d)|(?<=[A-G])b/g, (m, p) => (p || "") + "♭");
 const toks = s => (s || "").trim().split(/\s+/).filter(Boolean);
 const MRX = /^\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*$/;
 const normMeter = t => { const m = String(t || "").match(MRX); return m && +m[1] > 0 && +m[2] > 0 ? `${+m[1]}/${+m[2]}` : null; };
@@ -521,11 +521,12 @@ function drawMeter(ctx, m, x, y, h) {
 }
 const tri = e => e.replace(/maj|Maj|M(?=\d)/g, "△");
 function parseChord(t) {
-  let bass = "", ten = "", m = t.match(/\/([A-G][#b]?)(?![^(]*\))/);
+  let bass = "", ten = "", m = t.match(/\/([A-G](?:bb|##|b|#)?)(?![^(]*\))/);
   if (m) { bass = m[1]; t = t.slice(0, m.index) + t.slice(m.index + m[0].length); }
   m = t.match(/\^(\([^)]*\)|[^\s^]*)/);
   if (m) { ten = m[1].replace(/^\((.*)\)$/, "$1"); t = t.slice(0, m.index) + t.slice(m.index + m[0].length); }
-  m = t.match(/^([A-G][#b]?)(.*)$/);
+  if (!t && bass) return {root: "", ext: "", ten: pretty(ten), bass: "/" + pretty(bass)};
+  m = t.match(/^([A-G](?:bb|##|b|#)?)(.*)$/);
   return m ? {root: pretty(m[1]), ext: tri(pretty(m[2])), ten: pretty(ten), bass: bass ? "/" + pretty(bass) : ""} : {root: pretty(t), ext: "", ten: pretty(ten), bass: ""};
 }
 /* a token like "C.D-Em" becomes chord / separator segments */
@@ -539,7 +540,7 @@ function groupsOf(list) {
 }
 function segW(ctx, sg, sz) {
   if (sg.sep) return sz * (sg.sep === "·" ? .42 : .62);
-  const c = sg.c; ctx.font = `600 ${sz}px ${FONT}`; let w = ctx.measureText(c.root[0]).width;
+  const c = sg.c; ctx.font = `600 ${sz}px ${FONT}`; let w = c.root ? ctx.measureText(c.root[0]).width : 0;
   if (c.root.length > 1) { ctx.font = `600 ${sz * .72}px ${FONT}`; w += ctx.measureText(c.root.slice(1)).width - sz * .2; }
   ctx.font = `500 ${sz * .92}px ${FONT}`; w += ctx.measureText(c.ext).width;
   ctx.font = `500 ${sz * .55}px ${FONT}`; if (c.ten) w += ctx.measureText(c.ten).width + .3;
@@ -551,7 +552,7 @@ function drawSeg(ctx, sg, x, base, sz) {
   if (sg.sep === "·") { ctx.beginPath(); ctx.arc(x + sz * .21, base - sz * .34, sz * .075, 0, Math.PI * 2); ctx.fill(); return; }
   if (sg.sep === "-") { ctx.beginPath(); ctx.lineWidth = sz * .07; ctx.moveTo(x + sz * .1, base - sz * .33); ctx.lineTo(x + sz * .52, base - sz * .33); ctx.stroke(); return; }
   const c = sg.c; let cx = x;
-  ctx.font = `600 ${sz}px ${FONT}`; ctx.fillText(c.root[0], cx, base); cx += ctx.measureText(c.root[0]).width;
+  ctx.font = `600 ${sz}px ${FONT}`; if (c.root) { ctx.fillText(c.root[0], cx, base); cx += ctx.measureText(c.root[0]).width; }
   if (c.root.length > 1) { ctx.font = `600 ${sz * .72}px ${FONT}`; ctx.fillText(c.root.slice(1), cx - sz * .08, base - sz * .22); cx += ctx.measureText(c.root.slice(1)).width - sz * .2; }
   if (c.ext) { ctx.font = `500 ${sz * .92}px ${FONT}`; ctx.fillText(c.ext, cx, base); cx += ctx.measureText(c.ext).width; }
   if (c.ten) { ctx.font = `500 ${sz * .55}px ${FONT}`; ctx.fillText(c.ten, cx + .3, base - sz * .5); cx += ctx.measureText(c.ten).width + .3; }
@@ -563,8 +564,8 @@ function leavesOf(list) {
   const out = [];
   groupsOf(list).forEach(g => {
     if (g.t === "%" || g.t === "-") { out.push({share: g.n, centre: true, c: {root: g.t === "-" ? "–" : "%", ext: "", ten: "", bass: ""}}); return; }
-    const parts = g.t.split(/-(?=[A-G])/);
-    parts.forEach((pt, pi) => { const subs = pt.split(/[.·](?=[A-G])/);
+    const parts = g.t.split(/-(?=[A-G/])/);
+    parts.forEach((pt, pi) => { const subs = pt.split(/[.·](?=[A-G/])/);
       subs.forEach((sb, si) => out.push({share: g.n / parts.length / subs.length, c: parseChord(sb), sep: si ? "·" : pi ? "-" : null})); });
   });
   return out;
