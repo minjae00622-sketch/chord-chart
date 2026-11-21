@@ -356,7 +356,8 @@ const tn = (n, d) => (st.flats === "1" ? FL : SH)[(pc(n) + d + 120) % 12];
 const RX = /^([A-G][#b]?)([^/]*)(?:\/([A-G][#b]?))?$/;
 function trOne(t, d) { if (/^\/[A-G]/.test(t)) return t.replace(/\/([A-G](?:bb|##|b|#)?)/, (m, b) => "/" + tn(b, d)); if (!/^[A-G]/.test(t)) return t; return t.replace(/^([A-G](?:bb|##|b|#)?)/, r => tn(r, d)).replace(/\/([A-G](?:bb|##|b|#)?)/, (m, b) => "/" + tn(b, d)); }
 function trTok(t, d) { return t.split(/([.·]|-(?=[A-G\/]|$))/).map((p, i) => i % 2 ? p : trOne(p, d)).join(""); }
-const pretty = t => t.replace(/(?<=[A-G])bb/g, "♭♭").replace(/#/g, "♯").replace(/(^|[^A-Za-z])b(?=\d)|(?<=[A-G])b/g, (m, p) => (p || "") + "♭");
+const DFL = "\uE001", DSH = "\uE002";
+const pretty = t => t.replace(/(?<=[A-G])bb/g, DFL).replace(/(?<=[A-G])##/g, DSH).replace(/#/g, "♯").replace(/(^|[^A-Za-z])b(?=\d)|(?<=[A-G])b/g, (m, p) => (p || "") + "♭");
 const toks = s => (s || "").trim().split(/\s+/).filter(Boolean);
 const MRX = /^\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*$/;
 const normMeter = t => { const m = String(t || "").match(MRX); return m && +m[1] > 0 && +m[2] > 0 ? `${+m[1]}/${+m[2]}` : null; };
@@ -431,7 +432,7 @@ function draw(ctx, s, selBar) {
       else if (v && isTempo(f)) { const nw = noteGlyph(ctx, x + lw + 1.2, y + 5.6, S.tempoNote || "q"), t = "= " + v;
         font(9, 500); let pt = 9; while (ctx.measureText(t).width + nw + .8 > room && pt > 5) { pt -= .25; font(pt, 500); }
         text(x + lw + 1.2 + nw + .8, y + 5.6, t, pt, INK, 500); }
-      else if (v) { const km = isKey(f) && v.match(/^([A-G][#b]?)(m)?$/), t = km ? `${pretty(km[1])} ${km[2] ? "minor" : "major"}` : /키|key/i.test(f) ? pretty(v) : v; text(x + lw + 1, y + 5.6, t, fit(t, 9), INK, 500); }
+      else if (v) { const km = isKey(f) && v.match(/^([A-G][#b]?)(m)?$/), t = km ? `${pretty(km[1])} ${km[2] ? "minor" : "major"}` : /키|key/i.test(f) ? pretty(v) : v; const pt = fit(t, 9); font(pt, 500); ctx.fillStyle = INK; ctx.textBaseline = "alphabetic"; ftx(ctx, t, x + lw + 1, y + 5.6); }
       x += fw + GAP; });
     y += 11;
   }
@@ -448,11 +449,19 @@ function draw(ctx, s, selBar) {
     const q0 = secOf(k0 + 1);
     if (LAB && q0) { ctx.fillStyle = secColor(q0); ctx.fillRect(L, y0, LAB, rowH); }
     ctx.globalAlpha = 1;
-    if (LAB && st.secNames) {
-      const qs = S.sections.find(q => q.from >= k0 + 1 && q.from <= k0 + nb && secValid(q));
-      if (qs) { const t = secLabel(qs); let sz = 7.5; font(sz, 700);
-        while (ctx.measureText(t).width > LAB - 1.4 && sz > 3.2) { sz -= .25; font(sz, 700); }
-        text(L + .7, y0 + Math.min(4.2, rowH * .5), t, sz, "#222", 700); }
+    if (st.secNames) {
+      /* a section that starts on the row's first bar is named in the left column;
+         one that starts mid-row gets a small tag at the top of its first bar */
+      const BWr = (R - L - LAB) / nb;
+      S.sections.filter(q => q.from >= k0 + 1 && q.from <= k0 + nb && secOf(q.from) === q).forEach(q => {
+        const t = secLabel(q);
+        if (LAB && q.from === k0 + 1) { let sz = 7.5; font(sz, 700);
+          while (ctx.measureText(t).width > LAB - 1.4 && sz > 3.2) { sz -= .25; font(sz, 700); }
+          text(L + .7, y0 + Math.min(4.2, rowH * .5), t, sz, "#222", 700); }
+        else if (q.from !== k0 + 1 || !LAB) { const bx = L + LAB + (q.from - k0 - 1) * BWr; font(6, 700);
+          const tw = ctx.measureText(t).width + 1.4; ctx.fillStyle = secColor(q); ctx.fillRect(bx + .4, y0 + .4, tw, 3.2);
+          text(bx + 1.1, y0 + 3, t, 6, "#222", 700); }
+      });
     }
     for (let b = 0; b < nb; b++) {
       const bx = L + LAB + b * BW, k = k0 + b + 1;
@@ -538,13 +547,36 @@ function groupsOf(list) {
   list.forEach(t => { const L = g[g.length - 1]; if (L && L.t === t && t !== "%" && t !== "-") L.n++; else g.push({t, n: 1}); });
   return g;
 }
+/* accidentals are drawn as shapes so they sit tight and look the same on every device */
+const ACC = {"♭": .4, "♯": .46, [DFL]: .66, [DSH]: .5};
+function accGlyph(ctx, ch, x, y, f) {
+  ctx.save(); ctx.strokeStyle = ctx.fillStyle; ctx.lineCap = "round";
+  const flat = x0 => { ctx.beginPath(); ctx.lineWidth = f * .065; ctx.moveTo(x0, y - f * .8); ctx.lineTo(x0, y); ctx.stroke();
+    ctx.beginPath(); ctx.lineWidth = f * .085; ctx.moveTo(x0, y - f * .3); ctx.bezierCurveTo(x0 + f * .44, y - f * .5, x0 + f * .4, y - f * .1, x0, y); ctx.stroke(); };
+  if (ch === "♭") flat(x + f * .06);
+  else if (ch === DFL) { flat(x + f * .06); flat(x + f * .32); }
+  else if (ch === "♯") { ctx.lineCap = "butt";
+    [[.15, .05], [.31, 0]].forEach(([dx, dy]) => { ctx.beginPath(); ctx.lineWidth = f * .055; ctx.moveTo(x + f * dx, y - f * .82 + f * dy); ctx.lineTo(x + f * dx, y + f * .08 + f * dy); ctx.stroke(); });
+    [.28, .56].forEach(h => { ctx.beginPath(); ctx.lineWidth = f * .11; ctx.moveTo(x + f * .03, y - f * h + f * .05); ctx.lineTo(x + f * .43, y - f * h - f * .05); ctx.stroke(); }); }
+  else if (ch === DSH) { const cx = x + f * .25, cy = y - f * .36, r = f * .17;
+    ctx.beginPath(); ctx.lineWidth = f * .08; ctx.moveTo(cx - r, cy - r); ctx.lineTo(cx + r, cy + r); ctx.moveTo(cx + r, cy - r); ctx.lineTo(cx - r, cy + r); ctx.stroke();
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy]) => ctx.fillRect(cx + sx * r - f * .06, cy + sy * r - f * .06, f * .12, f * .12)); }
+  ctx.restore();
+}
+const fsize = ctx => parseFloat(ctx.font.split(" ")[1]);
+function mtx(ctx, t) { const f = fsize(ctx); let w = 0, run = "";
+  for (const ch of t) { if (ACC[ch]) { w += ctx.measureText(run).width + f * ACC[ch]; run = ""; } else run += ch; }
+  return w + ctx.measureText(run).width; }
+function ftx(ctx, t, x, y) { const f = fsize(ctx); let run = "";
+  for (const ch of t) { if (ACC[ch]) { ctx.fillText(run, x, y); x += ctx.measureText(run).width; accGlyph(ctx, ch, x, y, f); x += f * ACC[ch]; run = ""; } else run += ch; }
+  ctx.fillText(run, x, y); }
 function segW(ctx, sg, sz) {
   if (sg.sep) return sz * (sg.sep === "·" ? .42 : .62);
   const c = sg.c; ctx.font = `600 ${sz}px ${FONT}`; let w = c.root ? ctx.measureText(c.root[0]).width : 0;
-  if (c.root.length > 1) { ctx.font = `600 ${sz * .72}px ${FONT}`; w += ctx.measureText(c.root.slice(1)).width - sz * .2; }
-  ctx.font = `500 ${sz * .92}px ${FONT}`; w += ctx.measureText(c.ext).width;
-  ctx.font = `500 ${sz * .55}px ${FONT}`; if (c.ten) w += ctx.measureText(c.ten).width + .3;
-  ctx.font = `500 ${sz * .8}px ${FONT}`; if (c.bass) w += ctx.measureText(c.bass).width + .2;
+  if (c.root.length > 1) { ctx.font = `600 ${sz * .72}px ${FONT}`; w += mtx(ctx, c.root.slice(1)) + sz * .05; }
+  ctx.font = `500 ${sz * .92}px ${FONT}`; w += mtx(ctx, c.ext);
+  ctx.font = `500 ${sz * .55}px ${FONT}`; if (c.ten) w += mtx(ctx, c.ten) + .3;
+  ctx.font = `500 ${sz * .8}px ${FONT}`; if (c.bass) w += mtx(ctx, c.bass) + .2;
   return w + .3;
 }
 function drawSeg(ctx, sg, x, base, sz) {
@@ -553,10 +585,10 @@ function drawSeg(ctx, sg, x, base, sz) {
   if (sg.sep === "-") { ctx.beginPath(); ctx.lineWidth = sz * .07; ctx.moveTo(x + sz * .1, base - sz * .33); ctx.lineTo(x + sz * .52, base - sz * .33); ctx.stroke(); return; }
   const c = sg.c; let cx = x;
   ctx.font = `600 ${sz}px ${FONT}`; if (c.root) { ctx.fillText(c.root[0], cx, base); cx += ctx.measureText(c.root[0]).width; }
-  if (c.root.length > 1) { ctx.font = `600 ${sz * .72}px ${FONT}`; ctx.fillText(c.root.slice(1), cx - sz * .08, base - sz * .22); cx += ctx.measureText(c.root.slice(1)).width - sz * .2; }
-  if (c.ext) { ctx.font = `500 ${sz * .92}px ${FONT}`; ctx.fillText(c.ext, cx, base); cx += ctx.measureText(c.ext).width; }
-  if (c.ten) { ctx.font = `500 ${sz * .55}px ${FONT}`; ctx.fillText(c.ten, cx + .3, base - sz * .5); cx += ctx.measureText(c.ten).width + .3; }
-  if (c.bass) { ctx.font = `500 ${sz * .8}px ${FONT}`; ctx.fillText(c.bass, cx + .2, base); }
+  if (c.root.length > 1) { ctx.font = `600 ${sz * .72}px ${FONT}`; ftx(ctx, c.root.slice(1), cx + sz * .02, base - sz * .3); cx += mtx(ctx, c.root.slice(1)) + sz * .05; }
+  if (c.ext) { ctx.font = `500 ${sz * .92}px ${FONT}`; ftx(ctx, c.ext, cx, base); cx += mtx(ctx, c.ext); }
+  if (c.ten) { ctx.font = `500 ${sz * .55}px ${FONT}`; ftx(ctx, c.ten, cx + .3, base - sz * .5); cx += mtx(ctx, c.ten) + .3; }
+  if (c.bass) { ctx.font = `500 ${sz * .8}px ${FONT}`; ftx(ctx, c.bass, cx + .2, base); }
 }
 /* split a bar into timed pieces: spaces = equal shares (repeats add shares),
    "-" splits a share into equal halves, "." splits those again: C-D = C C D D, C.D-Em = C D Em Em */
