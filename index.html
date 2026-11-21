@@ -461,8 +461,8 @@ function draw(ctx, s, selBar) {
       if (st.half) line(bx + BW / 2, y0 + Math.min(3, rowH * .2), bx + BW / 2, y0 + rowH - Math.min(3, rowH * .2), LIGHT, .5, [.7, .7]);
       if (b) line(bx, y0, bx, y0 + rowH, INK, .7);
       const mk = S.marks[k] || {};
-      let off = 0, endR = mk.re ? 2.9 : 0;
-      if (mk.rs) { repeatSign(ctx, bx, y0, rowH, true); off += 2.9; }
+      let off = 0, endR = mk.re ? 4.1 : 0;
+      if (mk.rs) { repeatSign(ctx, bx, y0, rowH, true); off += 4.1; }
       if (mk.re) repeatSign(ctx, bx + BW, y0, rowH, false);
       if (st.showMeter && k > 1) { const m = meterAt(k); if (m !== meterAt(k - 1)) off += drawMeter(ctx, m, bx + off, y0, rowH); }
       const dv = mk.v ? 1.2 : 0;
@@ -506,10 +506,10 @@ function noteGlyph(ctx, x, base, type) {
   ctx.restore(); return w;
 }
 function repeatSign(ctx, x, y, h, start) {
-  const d = start ? 1 : -1, lw = (w, xx) => { ctx.beginPath(); ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = w * PT; ctx.moveTo(xx, y); ctx.lineTo(xx, y + h); ctx.stroke(); };
-  lw(2.2, x + d * .4); lw(.7, x + d * 1.15);
-  ctx.fillStyle = "#1a1a1a";
-  [-.16, .16].forEach(t => { ctx.beginPath(); ctx.arc(x + d * 1.95, y + h / 2 + h * t, .42, 0, Math.PI * 2); ctx.fill(); });
+  const d = start ? 1 : -1, lw = (w, xx) => { ctx.beginPath(); ctx.strokeStyle = "#000"; ctx.lineWidth = w * PT; ctx.moveTo(xx, y); ctx.lineTo(xx, y + h); ctx.stroke(); };
+  lw(4.2, x + d * .74); lw(1.2, x + d * 1.95);
+  ctx.fillStyle = "#000";
+  [-.17, .17].forEach(t => { ctx.beginPath(); ctx.arc(x + d * 2.95, y + h / 2 + h * t, .66, 0, Math.PI * 2); ctx.fill(); });
 }
 function drawMeter(ctx, m, x, y, h) {
   const [a, b] = m.split("/"), sz = Math.min(h * 0.4, 4.6);
